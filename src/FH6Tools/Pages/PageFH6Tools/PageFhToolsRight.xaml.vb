@@ -97,6 +97,8 @@ Public Class PageFhToolsRight
         BtnChangeInstallRoot.Text = FhLanguage.Text("更改安装位置", "Change Install Location")
         BtnImportZip.Text = FhLanguage.Text("导入 ZIP", "Import ZIP")
         BtnImportFolder.Text = FhLanguage.Text("添加文件夹", "Add Folder")
+        BtnPauseCurrentDownload.Text = FhLanguage.Text("暂停当前", "Pause Current")
+        BtnCancelCurrentDownload.Text = FhLanguage.Text("取消当前", "Cancel Current")
         CardConfig.Title = FhLanguage.Text("常规设置", "General Settings")
         CardGameData.Title = FhLanguage.Text("游戏与数据", "Game and Data")
         LabLanguageTitle.Text = FhLanguage.Text("界面语言", "Interface Language")
@@ -284,7 +286,19 @@ Public Class PageFhToolsRight
     Private Function GetToolState(toolId As String) As ToolInstallState
         Dim state = CurrentState.Tools.FirstOrDefault(Function(item) item.ToolId.Equals(toolId, StringComparison.OrdinalIgnoreCase))
         If state IsNot Nothing Then Return state
-        state = New ToolInstallState With {.ToolId = toolId}
+        Dim tool = CurrentTools.FirstOrDefault(Function(item) item.Id.Equals(toolId, StringComparison.OrdinalIgnoreCase))
+        state = New ToolInstallState With {
+            .ToolId = toolId,
+            .ListenAddress = "127.0.0.1",
+            .Port = If(tool Is Nothing, 0, RuntimeService.GetConfiguredPort(tool)),
+            .TelemetryPort = If(tool Is Nothing, 0, tool.TelemetryPort),
+            .RunAsAdministrator = tool?.RequiresAdmin
+        }
+        If tool?.Hotkeys IsNot Nothing Then
+            state.Hotkeys = tool.Hotkeys.
+                Where(Function(item) Not String.IsNullOrWhiteSpace(item.Name) AndAlso Not String.IsNullOrWhiteSpace(item.DefaultValue)).
+                ToDictionary(Function(item) item.Name, Function(item) item.DefaultValue, StringComparer.OrdinalIgnoreCase)
+        End If
         CurrentState.Tools.Add(state)
         Return state
     End Function
@@ -494,7 +508,10 @@ Public Class PageFhToolsRight
             Using request As New HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/Dr-hydra/FH6Tools/releases/latest")
                 request.Headers.UserAgent.ParseAdd("FH6Tools")
                 Using response = Await AppUpdateClient.SendAsync(request)
-                    If Not response.IsSuccessStatusCode Then Return
+                    If Not response.IsSuccessStatusCode Then
+                        If showNoUpdate Then Hint(FhLanguage.Text("当前没有可检查的已发布版本。", "No published release is available to check."), HintType.Blue)
+                        Return
+                    End If
                     Using document = System.Text.Json.JsonDocument.Parse(Await response.Content.ReadAsStringAsync())
                         Dim latest = document.RootElement.GetProperty("tag_name").GetString()
                         Dim current = Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()
@@ -506,8 +523,9 @@ Public Class PageFhToolsRight
                     End Using
                 End Using
             End Using
-        Catch
+        Catch ex As Exception
             ' Startup update checks are intentionally silent on network errors.
+            If showNoUpdate Then Hint(FhLanguage.Text("检查更新失败：", "Update check failed: ") & ex.Message, HintType.Red)
         End Try
     End Function
 
@@ -600,13 +618,16 @@ Public Class PageFhToolsRight
         If task.IsPaused Then
             task.IsPaused = False
             task.StatusText = FhLanguage.Text("等待继续", "Waiting to resume")
-            PendingInstallTools.Enqueue(task)
+            If Not PendingInstallTools.Contains(task) Then PendingInstallTools.Enqueue(task)
             Await ProcessInstallQueueAsync()
         ElseIf task Is ActiveDownloadTask AndAlso ActiveDownloadCancellation IsNot Nothing Then
             PauseRequested = True
             task.IsPaused = True
             task.StatusText = FhLanguage.Text("正在暂停", "Pausing")
             ActiveDownloadCancellation.Cancel()
+        Else
+            task.IsPaused = True
+            task.StatusText = FhLanguage.Text("已暂停", "Paused")
         End If
     End Sub
 
@@ -616,6 +637,27 @@ Public Class PageFhToolsRight
         task.IsCancelled = True
         task.StatusText = FhLanguage.Text("已取消", "Cancelled")
         If task Is ActiveDownloadTask AndAlso ActiveDownloadCancellation IsNot Nothing Then ActiveDownloadCancellation.Cancel()
+    End Sub
+
+    Private Sub BtnPauseCurrentDownload_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnPauseCurrentDownload.Click
+        If ActiveDownloadTask Is Nothing OrElse ActiveDownloadCancellation Is Nothing Then
+            Hint(FhLanguage.Text("当前没有正在下载的任务。", "There is no active download task."), HintType.Blue)
+            Return
+        End If
+        PauseRequested = True
+        ActiveDownloadTask.IsPaused = True
+        ActiveDownloadTask.StatusText = FhLanguage.Text("正在暂停", "Pausing")
+        ActiveDownloadCancellation.Cancel()
+    End Sub
+
+    Private Sub BtnCancelCurrentDownload_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnCancelCurrentDownload.Click
+        If ActiveDownloadTask Is Nothing OrElse ActiveDownloadCancellation Is Nothing Then
+            Hint(FhLanguage.Text("当前没有正在下载的任务。", "There is no active download task."), HintType.Blue)
+            Return
+        End If
+        ActiveDownloadTask.IsCancelled = True
+        ActiveDownloadTask.StatusText = FhLanguage.Text("正在取消", "Cancelling")
+        ActiveDownloadCancellation.Cancel()
     End Sub
 
     Private Async Function ProcessInstallQueueAsync() As Task
@@ -687,6 +729,15 @@ Public Class PageFhToolsRight
         End Try
     End Sub
 
+    Private Sub HeaderToolToggleCollapse_Click(sender As Object, e As RouteEventArgs)
+        Dim current As DependencyObject = TryCast(sender, DependencyObject)
+        While current IsNot Nothing AndAlso Not TypeOf current Is MyCard
+            current = VisualTreeHelper.GetParent(current)
+        End While
+        Dim card = TryCast(current, MyCard)
+        If card IsNot Nothing Then card.IsSwapped = Not card.IsSwapped
+    End Sub
+
     Private Sub OpenToolFolder(sender As Object)
         Dim tool = GetToolFromSender(sender)
         If tool Is Nothing Then Return
@@ -719,13 +770,18 @@ Public Class PageFhToolsRight
             If config Is Nothing Then Return
             Dim configPath = ConfigService.ResolveConfigPath(tool, config)
             If ConfigSnapshotService.IsDirectoryConfig(config, configPath) Then
-                Directory.CreateDirectory(configPath)
+                If Not Directory.Exists(configPath) Then
+                    Hint(FhLanguage.Text("配置目录不存在。", "Config directory does not exist."), HintType.Blue)
+                    Return
+                End If
                 Process.Start(New ProcessStartInfo With {.FileName = configPath, .UseShellExecute = True})
                 LabConfigStatus.Text = "Opened config directory: " & configPath
                 Return
             End If
-            Directory.CreateDirectory(Path.GetDirectoryName(configPath))
-            If Not File.Exists(configPath) Then File.WriteAllText(configPath, "{}")
+            If Not File.Exists(configPath) Then
+                Hint(FhLanguage.Text("配置文件不存在。", "Config file does not exist."), HintType.Blue)
+                Return
+            End If
             Process.Start(New ProcessStartInfo With {.FileName = configPath, .UseShellExecute = True})
             LabConfigStatus.Text = "Opened config: " & configPath
         Catch ex As Exception
@@ -793,16 +849,21 @@ Public Class PageFhToolsRight
     End Sub
 
     Private Function SelectConfig(tool As ToolManifestEntry) As ToolConfigFileEntry
-        If tool.ConfigFiles Is Nothing OrElse tool.ConfigFiles.Count = 0 Then
-            Hint("This tool has no config files declared.", HintType.Blue)
+        Dim existingConfigs = If(tool.ConfigFiles, New List(Of ToolConfigFileEntry)).
+            Where(Function(config)
+                      Dim path = ConfigService.ResolveConfigPath(tool, config)
+                      Return File.Exists(path) OrElse Directory.Exists(path)
+                  End Function).ToList()
+        If existingConfigs.Count = 0 Then
+            Hint(FhLanguage.Text("未找到该工具的现有配置文件。", "No existing config files were found for this tool."), HintType.Blue)
             Return Nothing
         End If
-        If tool.ConfigFiles.Count > 1 Then
-            Dim selected = MyMsgBoxSelect(tool.ConfigFiles.Select(Function(config) config.Name), "Select config")
-            If selected < 0 OrElse selected >= tool.ConfigFiles.Count Then Return Nothing
-            Return tool.ConfigFiles(selected)
+        If existingConfigs.Count > 1 Then
+            Dim selected = MyMsgBoxSelect(existingConfigs.Select(Function(config) config.Name), FhLanguage.Text("选择配置", "Select config"))
+            If selected < 0 OrElse selected >= existingConfigs.Count Then Return Nothing
+            Return existingConfigs(selected)
         End If
-        Return tool.ConfigFiles(0)
+        Return existingConfigs(0)
     End Function
 
 End Class
@@ -817,13 +878,14 @@ Public Class ToolCardViewModel
     Public Property ListenAddress As String
     Public Property PortText As String
     Public Property HotkeyText As String
+    Private ReadOnly ExistingConfigCountValue As Integer
 
     Public Sub New(tool As ToolManifestEntry, status As ToolRuntimeStatus, Optional updateAvailable As Boolean = False, Optional state As ToolInstallState = Nothing)
         Me.Tool = tool
         Me.Status = status
         Me.UpdateAvailable = updateAvailable
         Me.LaunchWithGame = state?.LaunchWithGame
-        Me.RunAsAdministrator = state?.RunAsAdministrator
+        Me.RunAsAdministrator = If(state Is Nothing, tool.RequiresAdmin, state.RunAsAdministrator)
         Me.BackendOnly = state?.BackendOnly
         Me.ListenAddress = If(String.IsNullOrWhiteSpace(state?.ListenAddress), "127.0.0.1", state.ListenAddress)
         Me.PortText = If(If(state?.Port, 0) > 0, state.Port.ToString(), Status.Port.ToString())
@@ -832,6 +894,11 @@ Public Class ToolCardViewModel
             configuredHotkeys = tool.Hotkeys.ToDictionary(Function(item) item.Name, Function(item) item.DefaultValue, StringComparer.OrdinalIgnoreCase)
         End If
         Me.HotkeyText = String.Join("; ", configuredHotkeys.Select(Function(item) $"{item.Key}={item.Value}"))
+        ExistingConfigCountValue = If(tool.ConfigFiles, New List(Of ToolConfigFileEntry)).
+            Where(Function(config)
+                      Dim path = (New ConfigSnapshotService).ResolveConfigPath(tool, config)
+                      Return File.Exists(path) OrElse Directory.Exists(path)
+                  End Function).Count()
     End Sub
 
     Public ReadOnly Property DisplayName As String
@@ -858,6 +925,48 @@ Public Class ToolCardViewModel
         End Get
     End Property
 
+    Public ReadOnly Property ExistingConfigCount As Integer
+        Get
+            Return ExistingConfigCountValue
+        End Get
+    End Property
+
+    Public ReadOnly Property PortVisibility As Visibility
+        Get
+            Return If(HasPort, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    Public ReadOnly Property TelemetryVisibility As Visibility
+        Get
+            Return If(Tool.TelemetryPort > 0, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    Public ReadOnly Property HotkeyVisibility As Visibility
+        Get
+            Return If(HasHotkeys, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    Public ReadOnly Property BackendVisibility As Visibility
+        Get
+            Return If(HasBackend, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    Public ReadOnly Property ConfigVisibility As Visibility
+        Get
+            Return If(ExistingConfigCount > 0, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    Public ReadOnly Property RuntimeConfigVisibility As Visibility
+        Get
+            Return If(HasPort OrElse HasHotkeys, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
     Public ReadOnly Property TelemetryPortLine As String
         Get
             If Tool.TelemetryPort <= 0 Then Return FhLanguage.Text("游戏遥测端口：无", "Game telemetry port: none")
@@ -879,6 +988,12 @@ Public Class ToolCardViewModel
     Public ReadOnly Property RuntimeDisplayName As String
         Get
             Return $"{Tool.Name}  ·  {FhLanguage.Text(If(Status.IsRunning, "正在运行", "未运行"), If(Status.IsRunning, "Running", "Not running"))}"
+        End Get
+    End Property
+
+    Public ReadOnly Property RuntimeStateText As String
+        Get
+            Return FhLanguage.Text(If(Status.IsRunning, "正在运行", "未运行"), If(Status.IsRunning, "Running", "Not running"))
         End Get
     End Property
 
@@ -943,7 +1058,7 @@ Public Class ToolCardViewModel
 
     Public ReadOnly Property ConfigLine As String
         Get
-            Dim count = If(Tool.ConfigFiles Is Nothing, 0, Tool.ConfigFiles.Count)
+            Dim count = ExistingConfigCount
             Return FhLanguage.Text($"配置文件：{count} | 风险：{Tool.RiskLevel}", $"Config files: {count} | Risk: {Tool.RiskLevel}")
         End Get
     End Property
@@ -959,6 +1074,12 @@ Public Class ToolCardViewModel
     Public ReadOnly Property StartAllText As String
         Get
             Return FhLanguage.Text("全部启动", "Start All")
+        End Get
+    End Property
+
+    Public ReadOnly Property StartText As String
+        Get
+            Return FhLanguage.Text("启动", "Start")
         End Get
     End Property
 

@@ -4,7 +4,15 @@ Public Class ConfigSnapshotService
     Public Function ResolveConfigPath(tool As ToolManifestEntry, config As ToolConfigFileEntry) As String
         Dim toolRoot = (New ToolInstallService).GetInstallPath(tool)
         If File.Exists(toolRoot) Then toolRoot = Path.GetDirectoryName(toolRoot)
-        Return FhPaths.ExpandPath(config.Path, toolRoot)
+        Dim declaredPath = FhPaths.ExpandPath(config.Path, toolRoot)
+        If File.Exists(declaredPath) OrElse Directory.Exists(declaredPath) OrElse Not Directory.Exists(toolRoot) Then Return declaredPath
+
+        Dim targetName = Path.GetFileName(config.Path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        If String.IsNullOrWhiteSpace(targetName) Then Return declaredPath
+        If String.Equals(config.Kind, "directory", StringComparison.OrdinalIgnoreCase) Then
+            Return If(Directory.GetDirectories(toolRoot, targetName, SearchOption.AllDirectories).FirstOrDefault(), declaredPath)
+        End If
+        Return If(Directory.GetFiles(toolRoot, targetName, SearchOption.AllDirectories).FirstOrDefault(), declaredPath)
     End Function
 
     Public Function Backup(tool As ToolManifestEntry, config As ToolConfigFileEntry) As String

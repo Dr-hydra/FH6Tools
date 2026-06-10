@@ -81,7 +81,7 @@ artifacts\publish\win-x64
 ## 工具列表
 
 候选工具来源记录在 [tools.md](tools.md)。FH6Tools 会在启动时动态更新可用工具清单，并允许用户添加本地工具。
-有认为可以添加的工具欢迎提交issue
+想要添加工具欢迎提交issue。或者你可以自行导入。
 
 ## 数据目录
 

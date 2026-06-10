@@ -10,6 +10,7 @@ Public Class PageFhToolsRight
     Private ReadOnly RuntimeService As New ToolRuntimeService
     Private ReadOnly InstallService As New ToolInstallService
     Private ReadOnly GameService As New GameLaunchService
+    Private ReadOnly GameBackupService As New GameBackupService
     Private ReadOnly ToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly InstalledToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly RuntimeRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
@@ -20,6 +21,7 @@ Public Class PageFhToolsRight
     Private IsDownloadQueueRunning As Boolean
     Private IsRuntimeRefreshRunning As Boolean
     Private RuntimeRefreshStarted As Boolean
+    Private GameBackupMonitor As Task = Task.CompletedTask
     Private CurrentPage As FhShellPage = FhShellPage.Home
 
     Public ReadOnly Property GameSummary As String
@@ -260,11 +262,32 @@ Public Class PageFhToolsRight
                 End Try
                 If portConflict IsNot Nothing Then Await ResolvePortConflictAsync(portConflict.Tool, portConflict.Port)
             Next
+            Try
+                Await GameBackupService.BackupAsync(CurrentGame, "before-launch")
+            Catch ex As Exception
+                Logger.Warn(ex, "Pre-launch game save backup failed.")
+                Hint(FhLanguage.Text("启动前存档备份失败，游戏仍会继续启动：", "Pre-launch save backup failed; the game will still launch: ") & ex.Message, HintType.Red)
+            End Try
             Await GameService.LaunchAsync(CurrentGame)
+            If GameBackupMonitor.IsCompleted Then GameBackupMonitor = BackupAfterGameExitAsync(CurrentGame)
             Await RefreshGameAsync()
             Hint(FhLanguage.Text("已请求启动地平线 6。", "FH6 launch requested."), HintType.Green)
         Catch ex As Exception
             Hint(ex.Message, HintType.Red)
+        End Try
+    End Function
+
+    Private Async Function BackupAfterGameExitAsync(game As GameInstallState) As Task
+        Try
+            If Not Await GameService.WaitForGameExitAsync() Then Return
+            If Not Await GameBackupService.WaitForStableSaveAsync(game) Then Return
+            Dim backupPath = Await GameBackupService.BackupAsync(game, "after-exit")
+            If Not String.IsNullOrWhiteSpace(backupPath) Then
+                Hint(FhLanguage.Text("游戏退出后的存档备份已创建。", "Post-exit save backup created."), HintType.Green)
+            End If
+        Catch ex As Exception
+            Logger.Warn(ex, "Post-exit game save backup failed.")
+            Hint(FhLanguage.Text("游戏退出后的存档备份失败：", "Post-exit save backup failed: ") & ex.Message, HintType.Red)
         End Try
     End Function
 

@@ -22,6 +22,12 @@ Public Class GameLaunchService
             Return steam
         End If
 
+        Dim microsoftStore = DetectMicrosoftStoreInstall()
+        If microsoftStore.IsInstalled Then
+            microsoftStore.LastLaunchAt = state.LastGameLaunchAt
+            Return microsoftStore
+        End If
+
         Dim registry = DetectRegistryInstall()
         If registry.IsInstalled Then
             registry.LastLaunchAt = state.LastGameLaunchAt
@@ -38,6 +44,25 @@ Public Class GameLaunchService
         Dim state = Await ManifestService.LoadStateAsync()
         state.GamePath = path
         Await ManifestService.SaveStateAsync(state)
+    End Function
+
+    Public Async Function WaitForGameExitAsync(Optional startTimeout As TimeSpan = Nothing) As Task(Of Boolean)
+        If startTimeout = Nothing Then startTimeout = TimeSpan.FromMinutes(10)
+        Dim started = DateTime.UtcNow
+        Dim observedRunning = False
+        Dim absentSince As Nullable(Of DateTime)
+        While DateTime.UtcNow - started < startTimeout OrElse observedRunning
+            Dim running = Await Task.Run(AddressOf IsGameProcessRunning)
+            If running Then
+                observedRunning = True
+                absentSince = Nothing
+            ElseIf observedRunning Then
+                If Not absentSince.HasValue Then absentSince = DateTime.UtcNow
+                If DateTime.UtcNow - absentSince.Value >= TimeSpan.FromSeconds(10) Then Return True
+            End If
+            Await Task.Delay(TimeSpan.FromSeconds(5))
+        End While
+        Return False
     End Function
 
     Public Async Function LaunchAsync(game As GameInstallState) As Task
@@ -110,6 +135,37 @@ Public Class GameLaunchService
             Next
         Next
         Return New GameInstallState
+    End Function
+
+    Private Shared Function DetectMicrosoftStoreInstall() As GameInstallState
+        Dim savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                    "Packages", "Microsoft.624F8B84B80_8wekyb3d8bbwe", "SystemAppData", "wgs")
+        If Not Directory.Exists(savePath) Then Return New GameInstallState
+        Return New GameInstallState With {
+            .IsInstalled = True,
+            .Source = "Microsoft Store",
+            .InstallPath = Path.GetDirectoryName(Path.GetDirectoryName(savePath)),
+            .LaunchCommand = "xbox://game/?title=Forza%20Horizon%206",
+            .Message = "Microsoft Store save data detected."
+        }
+    End Function
+
+    Private Shared Function IsGameProcessRunning() As Boolean
+        Try
+            Dim found = False
+            For Each candidateProcess As Process In Process.GetProcesses()
+                Try
+                    found = found OrElse candidateProcess.ProcessName.Contains("ForzaHorizon6", StringComparison.OrdinalIgnoreCase)
+                Catch
+                    ' Some protected processes do not expose their names.
+                Finally
+                    candidateProcess.Dispose()
+                End Try
+            Next
+            Return found
+        Catch
+            Return False
+        End Try
     End Function
 
     Private Shared Function TryReadRegistryString(root As RegistryKey, path As String, name As String) As String

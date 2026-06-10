@@ -24,6 +24,7 @@ Public Class PageFhToolsLeft
         ItemAbout.Title = FhLanguage.Text("关于 FH6Tools", "About FH6Tools")
         ItemRuntimeInfo.Title = FhLanguage.Text("运行时与安全", "Runtime and Safety")
         BtnLaunchGame.Text = FhLanguage.Text("启动地平线 6", "Launch Forza Horizon 6")
+        BtnOpenGameBackups.Text = FhLanguage.Text("查看存档备份", "View Save Backups")
     End Sub
 
     Public Sub UpdateStatus(gameText As String, toolText As String, gameInstalled As Boolean)
@@ -34,6 +35,16 @@ Public Class PageFhToolsLeft
 
     Private Async Sub BtnLaunchGame_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnLaunchGame.Click
         If FrmMain IsNot Nothing Then Await FrmMain.LaunchGameFromSidebarAsync()
+    End Sub
+
+    Private Sub BtnOpenGameBackups_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenGameBackups.Click
+        Try
+            Dim service As New GameBackupService
+            Directory.CreateDirectory(service.BackupRoot)
+            Process.Start(New ProcessStartInfo With {.FileName = service.BackupRoot, .UseShellExecute = True})
+        Catch ex As Exception
+            Hint(ex.Message, HintType.Red)
+        End Try
     End Sub
 
     Private Sub SetChecked(page As FhShellPage)

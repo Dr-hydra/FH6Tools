@@ -16,7 +16,8 @@
                 <TextBlock Text="FH6" Foreground="White" FontSize="31" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <TextBlock x:Name="LabGamePlatform" Text="未检测到游戏" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,14" />
-            <local:MyButton x:Name="BtnLaunchGame" Text="启动地平线 6" Padding="12,9" ColorType="Highlight" HorizontalAlignment="Stretch" />
+            <local:MyButton x:Name="BtnLaunchGame" Text="启动地平线 6" Padding="12,9" ColorType="Highlight" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+            <local:MyButton x:Name="BtnOpenGameBackups" Text="查看存档备份" Padding="12,8" HorizontalAlignment="Stretch" />
         </StackPanel>
 
         <StackPanel x:Name="PanNavigation" Margin="0,16,0,0" Visibility="Collapsed">

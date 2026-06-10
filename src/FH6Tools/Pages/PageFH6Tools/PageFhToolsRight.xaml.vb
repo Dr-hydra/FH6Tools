@@ -149,9 +149,9 @@ Public Class PageFhToolsRight
         ItemAboutManifest.Title = FhLanguage.Text("工具清单", "Tool Manifest")
         ItemAboutManifest.Info = FhLanguage.Text("远程清单可以新增工具，并同步项目地址、名称和中英简介。",
                                                  "The remote manifest can add tools and sync project URLs, names, and descriptions.")
-        ItemAboutMigration.Title = FhLanguage.Text("v1.2.0 升级提示", "v1.2.0 Upgrade Notice")
-        ItemAboutMigration.Info = FhLanguage.Text("远程新增工具使用固定安全默认值；现有工具的敏感设置仍由本地清单控制。",
-                                                  "Remote additions use fixed safe defaults; sensitive settings for existing tools remain locally controlled.")
+        ItemAboutMigration.Title = FhLanguage.Text("v1.2.1 更新说明", "v1.2.1 Update Notes")
+        ItemAboutMigration.Info = FhLanguage.Text("微软商店、Xbox 和 Steam 版本统一使用 C:\XboxGames\GameSave\pgs 存档路径。",
+                                                  "Microsoft Store, Xbox, and Steam versions use C:\XboxGames\GameSave\pgs.")
         ItemAboutUpdateProtection.Title = FhLanguage.Text("更新数据保护", "Update Data Protection")
         ItemAboutUpdateProtection.Info = FhLanguage.Text("软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。",
                                                           "App updates replace only program files and preserve configuration, save backups, and installed tools.")

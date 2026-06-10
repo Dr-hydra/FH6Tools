@@ -1,5 +1,5 @@
 Public Class GameBackupService
-    Private Const MicrosoftStorePackage As String = "Microsoft.624F8B84B80_8wekyb3d8bbwe"
+    Private Const GameSavePath As String = "C:\XboxGames\GameSave\pgs"
 
     Public ReadOnly Property BackupRoot As String
         Get
@@ -8,17 +8,7 @@ Public Class GameBackupService
     End Property
 
     Public Function GetSavePath(game As GameInstallState) As String
-        If String.Equals(game?.Source, "Microsoft Store", StringComparison.OrdinalIgnoreCase) Then
-            Return GetMicrosoftStoreSavePath()
-        End If
-        If String.Equals(game?.Source, "Xbox", StringComparison.OrdinalIgnoreCase) OrElse
-           String.Equals(game?.Source, "Steam", StringComparison.OrdinalIgnoreCase) Then
-            Return GetXboxAndSteamSavePath()
-        End If
-
-        Dim xboxAndSteam = GetXboxAndSteamSavePath()
-        If Directory.Exists(xboxAndSteam) Then Return xboxAndSteam
-        Return GetMicrosoftStoreSavePath()
+        Return GameSavePath
     End Function
 
     Public Function GetBackups() As List(Of GameSaveBackupInfo)
@@ -88,15 +78,6 @@ Public Class GameBackupService
                            CopyDirectory(source, target)
                        End Sub)
         Return safetyBackup
-    End Function
-
-    Private Shared Function GetMicrosoftStoreSavePath() As String
-        Return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "Packages", MicrosoftStorePackage, "SystemAppData", "wgs")
-    End Function
-
-    Private Shared Function GetXboxAndSteamSavePath() As String
-        Return "C:\XboxGames\GameSave\pgs"
     End Function
 
     Private Shared Function GetDirectoryFingerprint(root As String) As String

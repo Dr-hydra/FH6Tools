@@ -22,16 +22,16 @@ Public Class GameLaunchService
             Return steam
         End If
 
-        Dim microsoftStore = DetectMicrosoftStoreInstall()
-        If microsoftStore.IsInstalled Then
-            microsoftStore.LastLaunchAt = state.LastGameLaunchAt
-            Return microsoftStore
-        End If
-
         Dim registry = DetectRegistryInstall()
         If registry.IsInstalled Then
             registry.LastLaunchAt = state.LastGameLaunchAt
             Return registry
+        End If
+
+        Dim microsoftStore = DetectMicrosoftStoreInstall()
+        If microsoftStore.IsInstalled Then
+            microsoftStore.LastLaunchAt = state.LastGameLaunchAt
+            Return microsoftStore
         End If
 
         Return New GameInstallState With {
@@ -142,15 +142,14 @@ Public Class GameLaunchService
     End Function
 
     Private Shared Function DetectMicrosoftStoreInstall() As GameInstallState
-        Dim savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                                    "Packages", "Microsoft.624F8B84B80_8wekyb3d8bbwe", "SystemAppData", "wgs")
+        Dim savePath = "C:\XboxGames\GameSave\pgs"
         If Not Directory.Exists(savePath) Then Return New GameInstallState
         Return New GameInstallState With {
             .IsInstalled = True,
             .Source = "Microsoft Store",
             .InstallPath = Path.GetDirectoryName(Path.GetDirectoryName(savePath)),
             .LaunchCommand = "xbox://game/?title=Forza%20Horizon%206",
-            .Message = "Microsoft Store save data detected."
+            .Message = "Shared Xbox game save data detected."
         }
     End Function
 

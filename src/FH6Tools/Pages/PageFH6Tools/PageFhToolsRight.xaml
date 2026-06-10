@@ -33,8 +33,8 @@
                 <ItemsControl x:Name="ConfigToolCards">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True">
-                                <StackPanel Margin="18,46,18,18">
+                            <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True" Loaded="ConfigToolCard_Loaded">
+                                <StackPanel x:Name="ConfigToolCardContent" Margin="18,46,18,18">
                                     <TextBlock Text="{Binding ConfigLine}" Visibility="{Binding ConfigVisibility}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
                                     <TextBlock Text="{Binding PortLine}" Visibility="{Binding PortVisibility}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
                                     <Grid Margin="0,0,0,10" Visibility="{Binding PortVisibility}">
@@ -64,10 +64,9 @@
                                         <local:MyButton Grid.Column="6" Text="{Binding RestoreText}" Visibility="{Binding ConfigVisibility}" Padding="10,7" Click="ToolRestoreConfig_Click" />
                                     </Grid>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,8,0">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,38,0">
                                     <local:MyIconTextButton Text="安装位置" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M96 256h320l96 96h416v448H96z" Click="HeaderToolOpenFolder_Click" />
-                                    <local:MyIconTextButton Text="卸载" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="F1 M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 2,0Z" Click="HeaderToolUninstall_Click" />
-                                    <local:MyIconTextButton Text="展开/收起" Height="27" LogoScale="0.7" Logo="M2,4 l-2,2 10,10 10,-10 -2,-2 -8,8 -8,-8 z" Click="HeaderToolToggleCollapse_Click" />
+                                    <local:MyIconTextButton Text="卸载" Height="27" LogoScale="0.7" Logo="F1 M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 2,0Z" Click="HeaderToolUninstall_Click" />
                                 </StackPanel>
                             </local:MyCard>
                         </DataTemplate>

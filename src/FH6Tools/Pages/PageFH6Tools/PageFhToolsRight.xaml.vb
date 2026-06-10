@@ -15,11 +15,14 @@ Public Class PageFhToolsRight
     Private ReadOnly ToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly InstalledToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly DownloadTasksSource As New ObservableCollection(Of DownloadTaskViewModel)
+    Private ReadOnly RuntimeRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
     Private CurrentTools As List(Of ToolManifestEntry) = New List(Of ToolManifestEntry)
     Private CurrentState As ToolStateStore = New ToolStateStore
     Private CurrentGame As GameInstallState = New GameInstallState
     Private ReadOnly PendingInstallTools As New Queue(Of DownloadTaskViewModel)
     Private IsDownloadQueueRunning As Boolean
+    Private IsRuntimeRefreshRunning As Boolean
+    Private RuntimeRefreshStarted As Boolean
     Private CurrentPage As FhShellPage = FhShellPage.Home
 
     Public ReadOnly Property GameSummary As String
@@ -64,6 +67,7 @@ Public Class PageFhToolsRight
         Dim gameTask = RefreshGameAsync()
         Dim manifestTask = RefreshManifestAndToolsAsync()
         Await Task.WhenAll(gameTask, manifestTask)
+        StartRuntimeRefresh()
     End Function
 
     Public Async Sub InitializeDeferred()
@@ -85,6 +89,30 @@ Public Class PageFhToolsRight
         CardGameData.Visibility = If(page = FhShellPage.GameData, Visibility.Visible, Visibility.Collapsed)
         CardAbout.Visibility = If(page = FhShellPage.About, Visibility.Visible, Visibility.Collapsed)
         CardRuntimeInfo.Visibility = If(page = FhShellPage.RuntimeInfo, Visibility.Visible, Visibility.Collapsed)
+    End Sub
+
+    Private Sub StartRuntimeRefresh()
+        If RuntimeRefreshStarted Then Return
+        RuntimeRefreshStarted = True
+        AddHandler RuntimeRefreshTimer.Tick, AddressOf RuntimeRefreshTimer_Tick
+        RuntimeRefreshTimer.Start()
+    End Sub
+
+    Private Async Sub RuntimeRefreshTimer_Tick(sender As Object, e As EventArgs)
+        If CurrentPage <> FhShellPage.Home OrElse IsRuntimeRefreshRunning OrElse CurrentTools.Count = 0 Then Return
+        IsRuntimeRefreshRunning = True
+        Try
+            Dim statusTasks = CurrentTools.Select(Async Function(tool) New ToolCardViewModel(tool, Await RuntimeService.GetStatusAsync(tool), InstallService.IsUpdateAvailable(tool), GetToolState(tool.Id))).ToArray()
+            Dim cards = Await Task.WhenAll(statusTasks)
+            InstalledToolCardsSource.Clear()
+            For Each card In cards
+                If card.Status.IsInstalled Then InstalledToolCardsSource.Add(card)
+            Next
+        Catch ex As Exception
+            Logger.Warn(ex, "Automatic tool status refresh failed.")
+        Finally
+            IsRuntimeRefreshRunning = False
+        End Try
     End Sub
 
     Public Sub ApplyLanguage()
@@ -661,13 +689,11 @@ Public Class PageFhToolsRight
         End Try
     End Sub
 
-    Private Sub HeaderToolToggleCollapse_Click(sender As Object, e As RouteEventArgs)
-        Dim current As DependencyObject = TryCast(sender, DependencyObject)
-        While current IsNot Nothing AndAlso Not TypeOf current Is MyCard
-            current = VisualTreeHelper.GetParent(current)
-        End While
-        Dim card = TryCast(current, MyCard)
-        If card IsNot Nothing Then card.IsSwapped = Not card.IsSwapped
+    Private Sub ConfigToolCard_Loaded(sender As Object, e As RoutedEventArgs)
+        Dim card = TryCast(sender, MyCard)
+        If card Is Nothing Then Return
+        Dim content = card.Children.OfType(Of StackPanel)().FirstOrDefault()
+        If content IsNot Nothing Then card.SwapControl = content
     End Sub
 
     Private Sub OpenToolFolder(sender As Object)

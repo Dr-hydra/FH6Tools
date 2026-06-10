@@ -695,6 +695,7 @@ Public Class PageFhToolsRight
         Dim content = card.Children.OfType(Of StackPanel)().FirstOrDefault()
         If content Is Nothing Then Return
         card.SwapControl = content
+        card.UseAnimation = False
         SynchronizeConfigToolCardHeight(card)
     End Sub
 
@@ -704,17 +705,19 @@ Public Class PageFhToolsRight
     End Sub
 
     Private Shared Sub SynchronizeConfigToolCardHeight(card As MyCard)
-        Dim useAnimation = card.UseAnimation
-        card.UseAnimation = False
         If card.IsSwapped Then
             card.SwapControl.Visibility = Visibility.Collapsed
+            card.MinHeight = MyCard.SwapedHeight
+            card.MaxHeight = MyCard.SwapedHeight
             card.Height = MyCard.SwapedHeight
         Else
+            card.MinHeight = 0
+            card.MaxHeight = Double.PositiveInfinity
             card.SwapControl.Visibility = Visibility.Visible
             card.Height = Double.NaN
         End If
-        card.TriggerForceResize()
-        card.UseAnimation = useAnimation
+        card.InvalidateMeasure()
+        card.InvalidateArrange()
     End Sub
 
     Private Sub OpenToolFolder(sender As Object)

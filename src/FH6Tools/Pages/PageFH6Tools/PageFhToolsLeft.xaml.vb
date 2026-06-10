@@ -27,9 +27,11 @@ Public Class PageFhToolsLeft
         BtnOpenGameBackups.Text = FhLanguage.Text("查看存档备份", "View Save Backups")
     End Sub
 
-    Public Sub UpdateStatus(gameText As String, toolText As String, gameInstalled As Boolean)
+    Public Sub UpdateStatus(gameText As String, toolText As String, gameInstalled As Boolean, gameRunning As Boolean)
         LabGamePlatform.Text = gameText
         LabGamePlatform.ToolTip = gameText
+        LabGameRuntimeState.Text = FhLanguage.Text(If(gameRunning, "游戏正在运行", "游戏未运行"), If(gameRunning, "Game running", "Game not running"))
+        LabGameRuntimeState.Foreground = TryCast(System.Windows.Application.Current.TryFindResource(If(gameRunning, "ColorBrush3", "ColorBrushGray3")), Brush)
         BtnLaunchGame.IsEnabled = gameInstalled
     End Sub
 

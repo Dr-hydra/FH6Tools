@@ -4,13 +4,12 @@ Imports System.Runtime.CompilerServices
 Imports Microsoft.Win32
 
 Public Class PageFhToolsRight
-    Private Shared ReadOnly AppUpdateClient As New HttpClient With {.Timeout = TimeSpan.FromSeconds(5)}
-
     Private ReadOnly ManifestService As New ToolManifestService
     Private ReadOnly RuntimeService As New ToolRuntimeService
     Private ReadOnly InstallService As New ToolInstallService
     Private ReadOnly GameService As New GameLaunchService
     Private ReadOnly GameBackupService As New GameBackupService
+    Private ReadOnly UpdateService As New AppUpdateService
     Private ReadOnly ToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly InstalledToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly RuntimeRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
@@ -22,6 +21,7 @@ Public Class PageFhToolsRight
     Private IsRuntimeRefreshRunning As Boolean
     Private RuntimeRefreshStarted As Boolean
     Private GameBackupMonitor As Task = Task.CompletedTask
+    Private CurrentGameRunning As Boolean
     Private CurrentPage As FhShellPage = FhShellPage.Home
 
     Public ReadOnly Property GameSummary As String
@@ -47,6 +47,12 @@ Public Class PageFhToolsRight
     Public ReadOnly Property IsGameInstalled As Boolean
         Get
             Return CurrentGame IsNot Nothing AndAlso CurrentGame.IsInstalled
+        End Get
+    End Property
+
+    Public ReadOnly Property IsGameRunning As Boolean
+        Get
+            Return CurrentGameRunning
         End Get
     End Property
 
@@ -102,9 +108,12 @@ Public Class PageFhToolsRight
     End Sub
 
     Private Async Sub RuntimeRefreshTimer_Tick(sender As Object, e As EventArgs)
-        If CurrentPage <> FhShellPage.Home OrElse IsRuntimeRefreshRunning OrElse CurrentTools.Count = 0 Then Return
+        If CurrentPage <> FhShellPage.Home OrElse IsRuntimeRefreshRunning Then Return
         IsRuntimeRefreshRunning = True
         Try
+            CurrentGameRunning = Await Task.Run(Function() GameService.IsGameRunning())
+            FrmMain?.UpdateShellStatus(GameSummary, ToolsSummary)
+            If CurrentTools.Count = 0 Then Return
             Dim statusTasks = CurrentTools.Select(Async Function(tool) New ToolCardViewModel(tool, Await RuntimeService.GetStatusAsync(tool), InstallService.IsUpdateAvailable(tool), GetToolState(tool.Id))).ToArray()
             Dim cards = Await Task.WhenAll(statusTasks)
             InstalledToolCardsSource.Clear()
@@ -120,7 +129,6 @@ Public Class PageFhToolsRight
 
     Public Sub ApplyLanguage()
         CardDownloads.Title = FhLanguage.Text("下载管理", "Downloads")
-        LabDownloadDescription.Text = FhLanguage.Text("下载与安装任务保存在软件旁的 FH6ToolsData 目录。", "Downloads and install jobs are stored in FH6ToolsData beside the app.")
         BtnReloadManifest.Text = FhLanguage.Text("检查更新", "Check Updates")
         BtnChangeInstallRoot.Text = FhLanguage.Text("更改安装位置", "Change Install Location")
         BtnImportZip.Text = FhLanguage.Text("导入 ZIP", "Import ZIP")
@@ -140,6 +148,15 @@ Public Class PageFhToolsRight
         ItemAboutSafety.Info = FhLanguage.Text("违反项目安全策略的条目不会被安装或启动。", "Entries that violate the project safety policy are not installed or launched.")
         ItemAboutManifest.Title = FhLanguage.Text("工具清单", "Tool Manifest")
         ItemAboutManifest.Info = FhLanguage.Text("工具列表会在软件启动时动态更新。", "The tool list is refreshed dynamically when the app starts.")
+        ItemAboutUpdateProtection.Title = FhLanguage.Text("更新数据保护", "Update Data Protection")
+        ItemAboutUpdateProtection.Info = FhLanguage.Text("软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。",
+                                                          "App updates replace only program files and preserve configuration, save backups, and installed tools.")
+        SetUiCreditText()
+        If String.IsNullOrWhiteSpace(LabAppUpdateStatus.Text) OrElse
+           LabAppUpdateStatus.Text = "尚未检查软件更新。" OrElse
+           LabAppUpdateStatus.Text = "App updates have not been checked yet." Then
+            LabAppUpdateStatus.Text = FhLanguage.Text("尚未检查软件更新。", "App updates have not been checked yet.")
+        End If
         ItemAboutRuntime.Title = FhLanguage.Text("共享运行时", "Shared Runtime")
         ItemAboutRuntime.Info = FhLanguage.Text(".NET 10 Desktop 与 ASP.NET Core Runtime 由所有托管程序共享。", ".NET 10 Desktop and ASP.NET Core Runtime are shared by all managed programs.")
         LabInstalledToolSummary.Text = FhLanguage.Text($"已安装工具：{InstalledToolCardsSource.Count} 个", $"Installed tools: {InstalledToolCardsSource.Count}")
@@ -149,6 +166,7 @@ Public Class PageFhToolsRight
 
     Private Async Function RefreshGameAsync() As Task
         CurrentGame = Await GameService.DetectAsync()
+        CurrentGameRunning = Await Task.Run(Function() GameService.IsGameRunning())
         BtnOpenGameFolder.IsEnabled = CurrentGame.IsInstalled AndAlso Not String.IsNullOrWhiteSpace(CurrentGame.InstallPath)
         LabGameDetectionStatus.Text = If(CurrentGame.IsInstalled,
                                          FhLanguage.Text($"已检测到 {CurrentGame.Source} 版本", $"Detected {CurrentGame.Source} version"),
@@ -484,31 +502,67 @@ Public Class PageFhToolsRight
         Await CheckAppUpdateAsync(True)
     End Sub
 
-    Private Shared Async Function CheckAppUpdateAsync(showNoUpdate As Boolean) As Task
+    Private Async Function CheckAppUpdateAsync(interactive As Boolean) As Task
+        LabAppUpdateStatus.Text = FhLanguage.Text("正在检查软件更新……", "Checking for app updates...")
+        BtnCheckAppUpdate.IsEnabled = False
         Try
-            Using request As New HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/Dr-hydra/FH6Tools/releases/latest")
-                request.Headers.UserAgent.ParseAdd("FH6Tools")
-                Using response = Await AppUpdateClient.SendAsync(request)
-                    If Not response.IsSuccessStatusCode Then
-                        If showNoUpdate Then Hint(FhLanguage.Text("当前没有可检查的已发布版本。", "No published release is available to check."), HintType.Blue)
-                        Return
-                    End If
-                    Using document = System.Text.Json.JsonDocument.Parse(Await response.Content.ReadAsStringAsync())
-                        Dim latest = document.RootElement.GetProperty("tag_name").GetString()
-                        Dim current = Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()
-                        If Not String.Equals(latest?.TrimStart("v"c), current, StringComparison.OrdinalIgnoreCase) Then
-                            Hint(FhLanguage.Text($"发现新版本：{latest}", $"New version available: {latest}"), HintType.Green)
-                        ElseIf showNoUpdate Then
-                            Hint(FhLanguage.Text("当前已是最新版本。", "FH6Tools is up to date."), HintType.Green)
-                        End If
-                    End Using
-                End Using
-            End Using
+            Dim update = Await UpdateService.CheckAsync()
+            If Not update.ReleaseAvailable Then
+                LabAppUpdateStatus.Text = FhLanguage.Text("当前没有已发布版本可供检查。", "No published release is available.")
+                If interactive Then MessageBox.Show(LabAppUpdateStatus.Text, "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Information)
+                Return
+            End If
+            If Not update.UpdateAvailable Then
+                LabAppUpdateStatus.Text = FhLanguage.Text($"当前已是最新版本（{update.CurrentVersion}）。", $"FH6Tools is up to date ({update.CurrentVersion}).")
+                If interactive Then MessageBox.Show(LabAppUpdateStatus.Text, "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Information)
+                Return
+            End If
+
+            LabAppUpdateStatus.Text = FhLanguage.Text($"发现新版本 {update.LatestVersion}，当前版本为 {update.CurrentVersion}。",
+                                                      $"Version {update.LatestVersion} is available. Current version: {update.CurrentVersion}.")
+            If Not interactive Then Return
+            If String.IsNullOrWhiteSpace(update.ZipDownloadUrl) Then
+                MessageBox.Show(FhLanguage.Text("发现新版本，但该版本没有 ZIP 更新包。将打开发布页面。",
+                                                "A new version is available, but it has no ZIP update package. The release page will open."),
+                                "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Information)
+                Process.Start(New ProcessStartInfo With {.FileName = update.ReleaseUrl, .UseShellExecute = True})
+                Return
+            End If
+            Dim confirm = MessageBox.Show(
+                FhLanguage.Text("是否下载并安装更新？更新只覆盖程序文件，FH6ToolsData 中的配置、存档备份和已安装工具将被保留。",
+                                "Download and install the update? Only app files are replaced; configuration, save backups, and installed tools in FH6ToolsData are preserved."),
+                "FH6Tools", MessageBoxButton.YesNo, MessageBoxImage.Question)
+            If confirm <> MessageBoxResult.Yes Then Return
+
+            Dim progress As New Progress(Of ToolDownloadProgress)(
+                Sub(value)
+                    LabAppUpdateStatus.Text = FhLanguage.Text($"正在下载更新：{value.Fraction:P0}", $"Downloading update: {value.Fraction:P0}")
+                End Sub)
+            Await UpdateService.PrepareAndLaunchUpdateAsync(update, progress)
+            LabAppUpdateStatus.Text = FhLanguage.Text("更新已准备完成，正在重新启动。", "Update prepared. Restarting...")
+            System.Windows.Application.Current.Shutdown()
         Catch ex As Exception
             ' Startup update checks are intentionally silent on network errors.
-            If showNoUpdate Then Hint(FhLanguage.Text("检查更新失败：", "Update check failed: ") & ex.Message, HintType.Red)
+            LabAppUpdateStatus.Text = FhLanguage.Text("检查更新失败：", "Update check failed: ") & ex.Message
+            If interactive Then MessageBox.Show(LabAppUpdateStatus.Text, "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Error)
+        Finally
+            BtnCheckAppUpdate.IsEnabled = True
         End Try
     End Function
+
+    Private Sub SetUiCreditText()
+        LabUiCredit.Inlines.Clear()
+        LabUiCredit.Inlines.Add(New Run(FhLanguage.Text("本项目的 UI 设计借鉴了 ", "The UI design of this project draws inspiration from ")))
+        Dim link As New Hyperlink(New Run("Meloong-Git/PCL")) With {.NavigateUri = New Uri("https://github.com/Meloong-Git/PCL")}
+        AddHandler link.RequestNavigate, AddressOf UiCredit_RequestNavigate
+        LabUiCredit.Inlines.Add(link)
+        LabUiCredit.Inlines.Add(New Run("。"))
+    End Sub
+
+    Private Sub UiCredit_RequestNavigate(sender As Object, e As Navigation.RequestNavigateEventArgs)
+        Process.Start(New ProcessStartInfo With {.FileName = e.Uri.AbsoluteUri, .UseShellExecute = True})
+        e.Handled = True
+    End Sub
 
     Private Async Sub ToolStartAll_Click(sender As Object, e As MouseButtonEventArgs)
         Await RunToolActionAsync(sender, Async Function(tool)
@@ -809,13 +863,13 @@ Public Class ToolCardViewModel
             If Not String.IsNullOrWhiteSpace(Tool.DescriptionZh) Then Return Tool.DescriptionZh
             Select Case Tool.Id.ToLowerInvariant()
                 Case "omnimix-vbnet-frontend"
-                    Return "OmniMix 的 Windows 前端，可启动或发现随附的后端服务。"
+                    Return "可以自定义的《地平线 6》音乐电台，支持网易云音乐、QQ 音乐和哔哩哔哩歌曲导入。"
                 Case "fh6-auction-house-sniper"
                     Return "用于监控《极限竞速：地平线 6》拍卖行的工具。"
                 Case "fh-language-combo-tool"
                     Return "用于调整《极限竞速》系列游戏语言组合的工具。"
                 Case "fh6farm"
-                    Return "由 Dr-hydra 提供的《极限竞速：地平线 6》辅助工具。"
+                    Return "用于获取超级抽奖的辅助工具。"
                 Case "fh6-virtual-tcu-backend"
                     Return "虚拟变速箱控制单元，提供浏览器仪表盘及本地 WebSocket/HTTP 服务。"
                 Case "horizon-haptics"

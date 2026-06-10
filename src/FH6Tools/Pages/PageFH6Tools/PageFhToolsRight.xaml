@@ -52,7 +52,6 @@
 
             <local:MyCard x:Name="CardDownloads" Title="下载管理" Visibility="Collapsed">
                 <StackPanel Margin="20,42,20,18">
-                    <TextBlock x:Name="LabDownloadDescription" Text="管理工具更新、安装位置与本地导入。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition />
@@ -126,6 +125,13 @@
                 <StackPanel Margin="20,42,20,18">
                     <TextBlock x:Name="LabAboutDescription" Text="FH6Tools 是用于启动地平线 6 和管理社区工具的本地 Windows 工具中心。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
                     <local:MyListItem x:Name="ItemAboutManifest" Title="工具清单" Info="工具列表会在软件启动时动态更新。" IsHitTestVisible="False" Height="54" />
+                    <TextBlock x:Name="LabUiCredit" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,8,0,0">
+                        <Run Text="本项目的 UI 设计借鉴了 " />
+                        <Hyperlink NavigateUri="https://github.com/Meloong-Git/PCL" RequestNavigate="UiCredit_RequestNavigate">Meloong-Git/PCL</Hyperlink>
+                        <Run Text="。" />
+                    </TextBlock>
+                    <local:MyListItem x:Name="ItemAboutUpdateProtection" Title="更新数据保护" Info="软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。" IsHitTestVisible="False" Height="54" Margin="0,8,0,0" />
+                    <TextBlock x:Name="LabAppUpdateStatus" Text="尚未检查软件更新。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,10,0,0" />
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <local:MyButton x:Name="BtnOpenProject" Text="访问项目" Padding="14,7" Margin="0,0,8,0" />
                         <local:MyButton x:Name="BtnCheckAppUpdate" Text="检查更新" Padding="14,7" />

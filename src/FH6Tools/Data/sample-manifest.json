@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-10T09:00:00.000Z",
+  "updatedAt": "2026-06-10T12:00:00.000Z",
   "tools": [
     {
       "id": "omnimix-vbnet-frontend",
@@ -8,7 +8,7 @@
       "version": "latest",
       "category": "audio",
       "description": "Windows frontend for OmniMix; the frontend starts or discovers the bundled backend.",
-      "descriptionZh": "OmniMix 的 Windows 前端，可启动或发现随附的后端服务。",
+      "descriptionZh": "可以自定义的《地平线 6》音乐电台，支持网易云音乐、QQ 音乐和哔哩哔哩歌曲导入。",
       "homepage": "https://github.com/Dr-hydra/OmniMix-VBNet-Frontend",
       "downloadUrl": "github-release://Dr-hydra/OmniMix-VBNet-Frontend/*full-framework-dependent.zip",
       "sha256": "",
@@ -99,7 +99,7 @@
       "version": "latest",
       "category": "automation",
       "description": "FH6 farming utility provided by Dr-hydra.",
-      "descriptionZh": "由 Dr-hydra 提供的《极限竞速：地平线 6》辅助工具。",
+      "descriptionZh": "用于获取超级抽奖的辅助工具。",
       "homepage": "https://github.com/Dr-hydra/FH6Farm",
       "downloadUrl": "github-release://Dr-hydra/FH6Farm/*without-runtime.zip",
       "sha256": "",

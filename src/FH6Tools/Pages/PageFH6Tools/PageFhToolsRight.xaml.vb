@@ -50,6 +50,11 @@ Public Class PageFhToolsRight
         End Get
     End Property
 
+    Public Sub ShowGameBackupManager()
+        Dim manager As New FormGameBackupManager(CurrentGame) With {.Owner = Window.GetWindow(Me)}
+        manager.ShowDialog()
+    End Sub
+
     Public Async Function InitializeAsync() As Task
         FhPaths.Ensure()
         DownloadToolCards.ItemsSource = ToolCardsSource

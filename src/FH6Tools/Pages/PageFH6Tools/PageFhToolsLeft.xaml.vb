@@ -38,13 +38,7 @@ Public Class PageFhToolsLeft
     End Sub
 
     Private Sub BtnOpenGameBackups_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenGameBackups.Click
-        Try
-            Dim service As New GameBackupService
-            Directory.CreateDirectory(service.BackupRoot)
-            Process.Start(New ProcessStartInfo With {.FileName = service.BackupRoot, .UseShellExecute = True})
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
+        FrmMain?.ShowGameBackupManager()
     End Sub
 
     Private Sub SetChecked(page As FhShellPage)

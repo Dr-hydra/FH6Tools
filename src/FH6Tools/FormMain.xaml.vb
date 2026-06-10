@@ -92,6 +92,10 @@ Public Class FormMain
         ApplyLanguage()
     End Sub
 
+    Public Sub ShowGameBackupManager()
+        PageMain?.ShowGameBackupManager()
+    End Sub
+
     Private Sub BtnTitleClose_Click(sender As Object, e As EventArgs) Handles BtnTitleClose.Click
         System.Windows.Application.Current.Shutdown()
     End Sub

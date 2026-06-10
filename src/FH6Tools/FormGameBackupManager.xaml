@@ -1,0 +1,82 @@
+<Window x:Class="FormGameBackupManager"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:FH6Tools"
+        Style="{StaticResource MyWindow}"
+        Title="存档备份管理"
+        Width="820"
+        Height="520"
+        MinWidth="680"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        Background="Transparent">
+    <Border Margin="10" Background="#FFF7F9FC" CornerRadius="7" BorderBrush="{DynamicResource ColorBrushGray5}" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.25" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44" />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+
+            <Grid x:Name="PanTitle" MouseLeftButtonDown="PanTitle_MouseLeftButtonDown">
+                <Grid.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="{DynamicResource ColorObject4}" Offset="0" />
+                        <GradientStop Color="{DynamicResource ColorObject2}" Offset="1" />
+                    </LinearGradientBrush>
+                </Grid.Background>
+                <TextBlock x:Name="LabWindowTitle" Text="存档备份管理" Foreground="White" FontSize="15" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="16,0,50,0" />
+                <local:MyIconButton x:Name="BtnClose" HorizontalAlignment="Right" Height="28" Width="28" VerticalAlignment="Center"
+                                    Margin="0,0,10,0" Theme="White" LogoScale="0.72"
+                                    Logo="F1 M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 2,0Z" />
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="LabTitle" Text="存档备份管理" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource ColorBrush1}" />
+                <TextBlock x:Name="LabHint" Grid.Row="1" Margin="0,8,0,14" TextWrapping="Wrap"
+                           Foreground="{DynamicResource ColorBrushGray3}"
+                           Text="选择备份后可以恢复。恢复前会自动备份当前存档，请确保游戏已经完全退出。" />
+
+                <Border Grid.Row="2" Background="White" BorderBrush="{DynamicResource ColorBrushGray6}" BorderThickness="1" CornerRadius="6">
+                    <DataGrid x:Name="GridBackups" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0"
+                              CanUserAddRows="False" CanUserDeleteRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn x:Name="ColCreatedAt" Header="备份时间" Binding="{Binding CreatedAtText}" Width="170" />
+                            <DataGridTextColumn x:Name="ColPlatform" Header="平台" Binding="{Binding Platform}" Width="140" />
+                            <DataGridTextColumn x:Name="ColType" Header="类型" Binding="{Binding TypeText}" Width="150" />
+                            <DataGridTextColumn x:Name="ColSize" Header="大小" Binding="{Binding SizeText}" Width="100" />
+                            <DataGridTextColumn x:Name="ColName" Header="目录名" Binding="{Binding Name}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+
+                <Grid Grid.Row="3" Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="LabStatus" VerticalAlignment="Center" Foreground="{DynamicResource ColorBrushGray3}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <local:MyButton x:Name="BtnRefresh" Text="刷新" Padding="16,8" Margin="0,0,8,0" />
+                        <local:MyButton x:Name="BtnOpenFolder" Text="打开备份目录" Padding="16,8" Margin="0,0,8,0" />
+                        <local:MyButton x:Name="BtnRestore" Text="恢复所选存档" Padding="16,8" ColorType="Highlight" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

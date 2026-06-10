@@ -8,6 +8,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>FH6Tools</RootNamespace>
     <AssemblyName>FH6Tools</AssemblyName>
+    <Description>Forza Horizon 6 community tool launcher and save backup manager.</Description>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Dr-hydra/FH6Tools</RepositoryUrl>
     <MyType>Custom</MyType>
     <StartupObject>FH6Tools.Application</StartupObject>
     <ApplicationIcon>Images\icon.ico</ApplicationIcon>

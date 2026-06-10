@@ -21,14 +21,23 @@ Public Class GameBackupService
         Return GetMicrosoftStoreSavePath()
     End Function
 
-    Public Async Function BackupAsync(game As GameInstallState, backupType As String) As Task(Of String)
+    Public Function GetBackups() As List(Of GameSaveBackupInfo)
+        If Not Directory.Exists(BackupRoot) Then Return New List(Of GameSaveBackupInfo)
+        Return Directory.EnumerateDirectories(BackupRoot).
+            Select(Function(backupPath) GameSaveBackupInfo.FromDirectory(backupPath)).
+            Where(Function(info) info IsNot Nothing).
+            OrderByDescending(Function(info) info.CreatedAt).
+            ToList()
+    End Function
+
+    Public Async Function BackupAsync(game As GameInstallState, backupType As String, Optional protectedBackupPath As String = "") As Task(Of String)
         Dim source = GetSavePath(game)
         If Not Directory.Exists(source) Then Return ""
 
         Return Await Task.Run(Function()
                                   Directory.CreateDirectory(BackupRoot)
                                   Dim platform = SafeName(If(game?.Source, "Unknown"))
-                                  Dim target = Path.Combine(BackupRoot, $"{DateTime.Now:yyyyMMdd-HHmmss}-{platform}-{SafeName(backupType)}")
+                                  Dim target = Path.Combine(BackupRoot, $"{DateTime.Now:yyyyMMdd-HHmmssfff}-{platform}-{SafeName(backupType)}")
                                   Try
                                       CopyDirectory(source, target)
                                   Catch
@@ -39,7 +48,7 @@ Public Class GameBackupService
                                       End Try
                                       Throw
                                   End Try
-                                  PruneBackups(backupType, If(String.Equals(backupType, "before-launch", StringComparison.OrdinalIgnoreCase), 3, 10))
+                                  PruneBackups(backupType, If(String.Equals(backupType, "before-launch", StringComparison.OrdinalIgnoreCase), 3, 10), protectedBackupPath)
                                   Return target
                               End Function)
     End Function
@@ -66,6 +75,21 @@ Public Class GameBackupService
         Return False
     End Function
 
+    Public Async Function RestoreAsync(game As GameInstallState, backupPath As String) As Task(Of String)
+        Dim source = ValidateBackupPath(backupPath)
+        Dim target = GetSavePath(game)
+        If Not Directory.Exists(source) Then Throw New DirectoryNotFoundException("The selected save backup no longer exists.")
+        If String.IsNullOrWhiteSpace(target) Then Throw New DirectoryNotFoundException("The game save path could not be determined.")
+
+        Dim safetyBackup = Await BackupAsync(game, "before-restore", source)
+        Await Task.Run(Sub()
+                           Directory.CreateDirectory(target)
+                           ClearDirectory(target)
+                           CopyDirectory(source, target)
+                       End Sub)
+        Return safetyBackup
+    End Function
+
     Private Shared Function GetMicrosoftStoreSavePath() As String
         Return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                             "Packages", MicrosoftStorePackage, "SystemAppData", "wgs")
@@ -88,10 +112,13 @@ Public Class GameBackupService
         End Try
     End Function
 
-    Private Sub PruneBackups(backupType As String, keep As Integer)
+    Private Sub PruneBackups(backupType As String, keep As Integer, protectedBackupPath As String)
         Dim suffix = "-" & SafeName(backupType)
+        Dim protectedFullPath = If(String.IsNullOrWhiteSpace(protectedBackupPath), "", Path.GetFullPath(protectedBackupPath))
         For Each backupDirectory As String In Directory.EnumerateDirectories(BackupRoot).
             Where(Function(candidatePath) IO.Path.GetFileName(candidatePath).EndsWith(suffix, StringComparison.OrdinalIgnoreCase)).
+            Where(Function(candidatePath) String.IsNullOrWhiteSpace(protectedFullPath) OrElse
+                                          Not String.Equals(Path.GetFullPath(candidatePath), protectedFullPath, StringComparison.OrdinalIgnoreCase)).
             OrderByDescending(Function(candidatePath) Directory.GetCreationTimeUtc(candidatePath)).
             Skip(keep)
             Directory.Delete(backupDirectory, True)
@@ -108,6 +135,26 @@ Public Class GameBackupService
         Next
     End Sub
 
+    Private Shared Sub ClearDirectory(target As String)
+        For Each filePath In Directory.EnumerateFiles(target)
+            File.SetAttributes(filePath, FileAttributes.Normal)
+            File.Delete(filePath)
+        Next
+        For Each directoryPath In Directory.EnumerateDirectories(target)
+            Directory.Delete(directoryPath, True)
+        Next
+    End Sub
+
+    Private Function ValidateBackupPath(backupPath As String) As String
+        If String.IsNullOrWhiteSpace(backupPath) Then Throw New ArgumentException("No save backup was selected.")
+        Dim root = Path.GetFullPath(BackupRoot).TrimEnd(Path.DirectorySeparatorChar) & Path.DirectorySeparatorChar
+        Dim candidate = Path.GetFullPath(backupPath).TrimEnd(Path.DirectorySeparatorChar) & Path.DirectorySeparatorChar
+        If Not candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("The selected folder is outside the FH6Tools save backup directory.")
+        End If
+        Return candidate.TrimEnd(Path.DirectorySeparatorChar)
+    End Function
+
     Private Shared Sub CopyReadableFile(source As String, target As String)
         Using input = New FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite Or FileShare.Delete)
             Using output = New FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None)
@@ -122,5 +169,71 @@ Public Class GameBackupService
             result = result.Replace(invalid, "-"c)
         Next
         Return result
+    End Function
+End Class
+
+Public Class GameSaveBackupInfo
+    Public Property Path As String = ""
+    Public Property Name As String = ""
+    Public Property CreatedAt As DateTime
+    Public Property Platform As String = ""
+    Public Property BackupType As String = ""
+    Public Property SizeBytes As Long
+
+    Public ReadOnly Property CreatedAtText As String
+        Get
+            Return CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+        End Get
+    End Property
+
+    Public ReadOnly Property TypeText As String
+        Get
+            Select Case BackupType
+                Case "before-launch"
+                    Return FhLanguage.Text("启动前", "Before launch")
+                Case "after-exit"
+                    Return FhLanguage.Text("退出后", "After exit")
+                Case "before-restore"
+                    Return FhLanguage.Text("恢复前保护", "Before restore")
+                Case Else
+                    Return BackupType
+            End Select
+        End Get
+    End Property
+
+    Public ReadOnly Property SizeText As String
+        Get
+            If SizeBytes >= 1024L * 1024 * 1024 Then Return $"{SizeBytes / 1024.0 / 1024 / 1024:0.00} GB"
+            If SizeBytes >= 1024L * 1024 Then Return $"{SizeBytes / 1024.0 / 1024:0.0} MB"
+            If SizeBytes >= 1024 Then Return $"{SizeBytes / 1024.0:0.0} KB"
+            Return $"{SizeBytes} B"
+        End Get
+    End Property
+
+    Public Shared Function FromDirectory(directoryPath As String) As GameSaveBackupInfo
+        Try
+            Dim name = IO.Path.GetFileName(directoryPath)
+            Dim parts = name.Split("-"c)
+            If parts.Length < 5 Then Return Nothing
+            Dim createdAt As DateTime
+            If Not DateTime.TryParseExact(parts(0) & "-" & parts(1), {"yyyyMMdd-HHmmssfff", "yyyyMMdd-HHmmss"},
+                                          Globalization.CultureInfo.InvariantCulture,
+                                          Globalization.DateTimeStyles.None, createdAt) Then
+                createdAt = Directory.GetCreationTime(directoryPath)
+            End If
+            Dim backupType = String.Join("-", parts.Skip(parts.Length - 2))
+            Dim platform = String.Join("-", parts.Skip(2).Take(parts.Length - 4))
+            Return New GameSaveBackupInfo With {
+                .Path = directoryPath,
+                .Name = name,
+                .CreatedAt = createdAt,
+                .Platform = platform,
+                .BackupType = backupType,
+                .SizeBytes = Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories).
+                    Sum(Function(filePath) New FileInfo(filePath).Length)
+            }
+        Catch
+            Return Nothing
+        End Try
     End Function
 End Class

@@ -65,6 +65,10 @@ Public Class GameLaunchService
         Return False
     End Function
 
+    Public Function IsGameRunning() As Boolean
+        Return IsGameProcessRunning()
+    End Function
+
     Public Async Function LaunchAsync(game As GameInstallState) As Task
         If Not game.IsInstalled Then Throw New InvalidOperationException("FH6 is not installed or bound.")
         Process.Start(New ProcessStartInfo With {.FileName = game.LaunchCommand, .UseShellExecute = True})

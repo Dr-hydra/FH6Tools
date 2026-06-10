@@ -117,11 +117,11 @@ async Task TestDownloadResumeShaAndCancel()
     var expected = Sha256(bytes);
 
     var net = new FhNet();
-    await net.DownloadFileAsync($"http://127.0.0.1:{port}/payload.bin", target, expected, new Progress<double>(), CancellationToken.None);
+    await net.DownloadFileAsync($"http://127.0.0.1:{port}/payload.bin", target, expected, new Progress<ToolDownloadProgress>(), CancellationToken.None);
     Require(File.ReadAllBytes(target).SequenceEqual(bytes), "resume download did not reconstruct payload");
 
     await ExpectThrows<InvalidDataException>(async () =>
-        await net.DownloadFileAsync($"http://127.0.0.1:{port}/payload.bin", Path.Combine(FhPaths.DownloadRoot, "bad.bin"), "00", new Progress<double>(), CancellationToken.None));
+        await net.DownloadFileAsync($"http://127.0.0.1:{port}/payload.bin", Path.Combine(FhPaths.DownloadRoot, "bad.bin"), "00", new Progress<ToolDownloadProgress>(), CancellationToken.None));
 
     var slowPort = GetFreePort();
     using var slowServer = new RangeServer(slowPort, bytes, slow: true);
@@ -129,7 +129,7 @@ async Task TestDownloadResumeShaAndCancel()
     using var cts = new CancellationTokenSource();
     cts.CancelAfter(100);
     await ExpectThrows<OperationCanceledException>(async () =>
-        await net.DownloadFileAsync($"http://127.0.0.1:{slowPort}/payload.bin", Path.Combine(FhPaths.DownloadRoot, "cancel.bin"), "", new Progress<double>(), cts.Token));
+        await net.DownloadFileAsync($"http://127.0.0.1:{slowPort}/payload.bin", Path.Combine(FhPaths.DownloadRoot, "cancel.bin"), "", new Progress<ToolDownloadProgress>(), cts.Token));
 }
 
 async Task TestZipInstallAndConfigSnapshots()
@@ -159,7 +159,7 @@ async Task TestZipInstallAndConfigSnapshots()
     };
 
     var installer = new ToolInstallService();
-    var installPath = await installer.DownloadAndInstallAsync(tool, new Progress<double>(), CancellationToken.None);
+    var installPath = await installer.DownloadAndInstallAsync(tool, new Progress<ToolDownloadProgress>(), CancellationToken.None);
     Require(File.Exists(Path.Combine(installPath, "tool.exe")), "zip install did not extract tool.exe");
     Require(installer.IsInstalled(tool), "zip tool should be installed");
 
@@ -300,7 +300,7 @@ static async Task TestInstallerDownloadExtension(ToolInstallService installer, s
         Sha256 = Sha256(bytes),
         ToolType = "single"
     };
-    await installer.DownloadAndInstallAsync(tool, new Progress<double>(), CancellationToken.None);
+    await installer.DownloadAndInstallAsync(tool, new Progress<ToolDownloadProgress>(), CancellationToken.None);
     Require(File.Exists(Path.Combine(FhPaths.DownloadRoot, $"{installType}-installer-tool-1.0.0.{installType}")), $"{installType} installer was not downloaded with .{installType} extension");
 }
 

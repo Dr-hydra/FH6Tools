@@ -6,14 +6,16 @@
                   Width="190">
     <Grid x:Name="PanAnimated" Background="#FAFFFFFF">
         <StackPanel x:Name="PanLauncher" Margin="18,28,18,18">
-            <Border Width="104" Height="104" CornerRadius="20" HorizontalAlignment="Center" Margin="0,0,0,18">
+            <Border Width="128" Height="108" CornerRadius="20" HorizontalAlignment="Center" Margin="0,0,0,18">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                         <GradientStop Color="{DynamicResource ColorObject3}" Offset="0" />
                         <GradientStop Color="{DynamicResource ColorObject1}" Offset="1" />
                     </LinearGradientBrush>
                 </Border.Background>
-                <TextBlock Text="FH6" Foreground="White" FontSize="31" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Grid Margin="10">
+                    <local:MyImage Source="pack://application:,,,/FH6Tools;component/Images/Logos/forza-horizon-6-logo.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                </Grid>
             </Border>
             <TextBlock x:Name="LabGamePlatform" Text="未检测到游戏" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,14" />
             <local:MyButton x:Name="BtnLaunchGame" Text="启动地平线 6" Padding="12,9" ColorType="Highlight" HorizontalAlignment="Stretch" Margin="0,0,0,8" />

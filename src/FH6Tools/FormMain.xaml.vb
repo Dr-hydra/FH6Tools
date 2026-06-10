@@ -84,7 +84,7 @@ Public Class FormMain
         ShapeTitleLogo.Visibility = Visibility.Collapsed
         LabTitleLogo.Visibility = Visibility.Visible
         LabTitleStatus.Visibility = Visibility.Visible
-        ImageTitleLogo.Visibility = Visibility.Collapsed
+        ImageTitleLogo.Visibility = Visibility.Visible
         PanTitleSelect.Visibility = Visibility.Visible
         LabTitleLogo.Text = "FH6Tools"
         LabTitleStatus.Text = FhLanguage.Text("地平线 6 工具中心", "Forza Horizon 6 Tool Center")

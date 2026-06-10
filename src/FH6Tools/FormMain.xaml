@@ -6,6 +6,7 @@
     x:Class="FormMain"
     Style="{StaticResource MyWindow}"
     Title="FH6Tools"
+    Icon="pack://application:,,,/FH6Tools;component/Images/Logos/fh6tools-logo.png"
     AllowDrop="True"
     AllowsTransparency="True"
     WindowStyle="None"
@@ -101,9 +102,9 @@
                             <ColumnDefinition Width="1*" />
                         </Grid.ColumnDefinitions>
                         <Path x:Name="ShapeTitleLogo" Data="M26,29 v-25 h6 a7,7 180 0 1 0,14 h-6 M62.5,6.5 a10,11.5 180 1 0 0,18 M71,2.5 v24.5 h13.5" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="19,15.5,0,15.5" Stretch="Fill" Stroke="White" StrokeThickness="2.2" Width="39" />
-                        <TextBlock x:Name="LabTitleLogo" Text="FH6Tools" Visibility="Collapsed" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="18,0,0,0" Foreground="White" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <TextBlock x:Name="LabTitleStatus" Text="地平线 6 工具中心" Visibility="Collapsed" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="122,1,0,0" Foreground="White" FontSize="12" Opacity="0.72" VerticalAlignment="Center" />
-                        <local:MyImage x:Name="ImageTitleLogo" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="7" VerticalAlignment="Center" Visibility="Collapsed" />
+                        <TextBlock x:Name="LabTitleLogo" Text="FH6Tools" Visibility="Collapsed" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="52,0,0,0" Foreground="White" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock x:Name="LabTitleStatus" Text="地平线 6 工具中心" Visibility="Collapsed" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="156,1,0,0" Foreground="White" FontSize="12" Opacity="0.72" VerticalAlignment="Center" />
+                        <local:MyImage x:Name="ImageTitleLogo" Source="pack://application:,,,/FH6Tools;component/Images/Logos/fh6tools-logo.png" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" HorizontalAlignment="Left" Margin="12,7" VerticalAlignment="Center" Width="34" Height="34" Stretch="Uniform" Visibility="Collapsed" />
                         <StackPanel Grid.Column="1" x:Name="PanTitleSelect" HorizontalAlignment="Left" Orientation="Horizontal" Height="27" VerticalAlignment="Center" Margin="13,0">
                             <local:MyRadioButton x:Name="BtnTitleSelect0" Text="启动台" Tag="0" Margin="5,0" Checked="True" Padding="2,0" LogoScale="0.9" Logo="M128 192h768v128H128zM128 448h768v128H128zM128 704h768v128H128z" />
                             <local:MyRadioButton x:Name="BtnTitleSelect1" Text="工具" Tag="1" Margin="5,0" Padding="2,0" LogoScale="0.9" Logo="M128 256h320v320H128zM576 256h320v128H576zM576 512h320v128H576zM128 704h768v96H128z" />

@@ -778,7 +778,7 @@ Public Class ToolCardViewModel
                 parts.AddRange(Tool.Hotkeys.Where(Function(item) Not String.IsNullOrWhiteSpace(item.DefaultValue)).
                     Select(Function(item) $"{item.DefaultValue}: {item.Description}"))
             End If
-            If Not String.IsNullOrWhiteSpace(Tool.Description) Then parts.Add(Tool.Description.ReplaceLineEndings(" "))
+            If Not String.IsNullOrWhiteSpace(Description) Then parts.Add(Description.ReplaceLineEndings(" "))
             Return String.Join("  ·  ", parts)
         End Get
     End Property
@@ -805,7 +805,27 @@ Public Class ToolCardViewModel
 
     Public ReadOnly Property Description As String
         Get
-            Return If(String.IsNullOrWhiteSpace(Tool.Description), Tool.Category, Tool.Description)
+            If FhLanguage.IsEnglish Then Return If(String.IsNullOrWhiteSpace(Tool.Description), Tool.Category, Tool.Description)
+            If Not String.IsNullOrWhiteSpace(Tool.DescriptionZh) Then Return Tool.DescriptionZh
+            Select Case Tool.Id.ToLowerInvariant()
+                Case "omnimix-vbnet-frontend"
+                    Return "OmniMix 的 Windows 前端，可启动或发现随附的后端服务。"
+                Case "fh6-auction-house-sniper"
+                    Return "用于监控《极限竞速：地平线 6》拍卖行的工具。"
+                Case "fh-language-combo-tool"
+                    Return "用于调整《极限竞速》系列游戏语言组合的工具。"
+                Case "fh6farm"
+                    Return "由 Dr-hydra 提供的《极限竞速：地平线 6》辅助工具。"
+                Case "fh6-virtual-tcu-backend"
+                    Return "虚拟变速箱控制单元，提供浏览器仪表盘及本地 WebSocket/HTTP 服务。"
+                Case "horizon-haptics"
+                    Return "通过 FH6 Data Out 遥测为 DualSense 控制器提供自适应扳机与触觉反馈。"
+                Case "forza-painter-fh6"
+                    Return "将图片转换为 FH6 涂装绘制数据，并提供可配置的几何参数。"
+                Case Else
+                    If String.Equals(Tool.Source, "local", StringComparison.OrdinalIgnoreCase) Then Return "用户手动添加的本地工具。"
+                    Return $"社区工具：{Tool.Name}"
+            End Select
         End Get
     End Property
 

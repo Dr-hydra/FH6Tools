@@ -152,6 +152,7 @@ Public Class ToolManifestService
             .Version = "local",
             .Category = "local",
             .Description = "User-added local tool.",
+            .DescriptionZh = "用户手动添加的本地工具。",
             .InstallType = "local",
             .ToolType = "single",
             .[Single] = New ToolEndpointDefinition With {.Executable = filePath},

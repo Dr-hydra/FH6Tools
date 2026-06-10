@@ -12,6 +12,7 @@ Public Class ToolManifestEntry
     Public Property Version As String = ""
     Public Property Category As String = ""
     Public Property Description As String = ""
+    Public Property DescriptionZh As String = ""
     Public Property Homepage As String = ""
     Public Property DownloadUrl As String = ""
     Public Property Sha256 As String = ""

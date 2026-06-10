@@ -28,6 +28,11 @@ Public Class FormGameBackupManager
     End Sub
 
     Private Sub PanTitle_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
+        Dim source = TryCast(e.OriginalSource, DependencyObject)
+        While source IsNot Nothing
+            If TypeOf source Is MyIconButton Then Return
+            source = VisualTreeHelper.GetParent(source)
+        End While
         If e.LeftButton = MouseButtonState.Pressed Then DragMove()
     End Sub
 

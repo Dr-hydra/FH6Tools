@@ -107,7 +107,7 @@
                         <StackPanel Grid.Column="1" x:Name="PanTitleSelect" HorizontalAlignment="Left" Orientation="Horizontal" Height="27" VerticalAlignment="Center" Margin="13,0">
                             <local:MyRadioButton x:Name="BtnTitleSelect0" Text="启动台" Tag="0" Margin="5,0" Checked="True" Padding="2,0" LogoScale="0.9" Logo="M128 192h768v128H128zM128 448h768v128H128zM128 704h768v128H128z" />
                             <local:MyRadioButton x:Name="BtnTitleSelect1" Text="工具" Tag="1" Margin="5,0" Padding="2,0" LogoScale="0.9" Logo="M128 256h320v320H128zM576 256h320v128H576zM576 512h320v128H576zM128 704h768v96H128z" />
-                            <local:MyRadioButton x:Name="BtnTitleSelect2" Text="设置" Tag="3" Margin="5,0" Padding="2,0" LogoScale="0.9" Logo="M512 128a384 384 0 1 0 0 768c64 0 96-32 96-72 0-28-16-48-32-64-20-20-24-48 8-72h56c132 0 224-84 224-204 0-192-164-356-352-356zM272 480a56 56 0 1 1 0-112 56 56 0 0 1 0 112zM424 320a56 56 0 1 1 0-112 56 56 0 0 1 0 112zM624 320a56 56 0 1 1 0-112 56 56 0 0 1 0 112zM760 480a56 56 0 1 1 0-112 56 56 0 0 1 0 112z" />
+                            <local:MyRadioButton x:Name="BtnTitleSelect2" Text="设置" Tag="3" Margin="5,0" Padding="2,0" LogoScale="0.9" Logo="M512 320a192 192 0 1 0 0 384 192 192 0 0 0 0-384zM448 64h128l24 112 96 40 96-64 80 80-64 96 40 96 112 24v128l-112 24-40 96 64 96-80 80-96-64-96 40-24 112H448l-24-112-96-40-96 64-80-80 64-96-40-96-112-24V448l112-24 40-96-64-96 80-80 96 64 96-40z" />
                             <local:MyRadioButton x:Name="BtnTitleSelect3" Text="关于" Tag="4" Margin="5,0" Padding="2,0" LogoScale="0.9" Logo="M448 128h128v128H448zM448 384h128v512H448z" />
                         </StackPanel>
                     </Grid>

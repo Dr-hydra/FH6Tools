@@ -7,6 +7,8 @@ Public Class ToolRuntimeService
     Private ReadOnly BackendProcesses As New Dictionary(Of String, Process)(StringComparer.OrdinalIgnoreCase)
     Private ReadOnly FrontendProcesses As New Dictionary(Of String, Process)(StringComparer.OrdinalIgnoreCase)
     Private ReadOnly PortOverrides As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+    Private ReadOnly RunAsAdministratorOverrides As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+    Private ReadOnly BackendOnlyOverrides As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
     Private Shared ReadOnly Client As New HttpClient With {.Timeout = TimeSpan.FromSeconds(2)}
 
     Public Async Function GetStatusAsync(tool As ToolManifestEntry) As Task(Of ToolRuntimeStatus)
@@ -30,6 +32,10 @@ Public Class ToolRuntimeService
 
     Public Async Function StartAllAsync(tool As ToolManifestEntry) As Task(Of ToolRuntimeStatus)
         EnsureAllowed(tool)
+        If BackendOnlyOverrides.ContainsKey(tool.Id) AndAlso BackendOnlyOverrides(tool.Id) AndAlso tool.Backend IsNot Nothing Then
+            Await StartBackendAsync(tool)
+            Return Await GetStatusAsync(tool)
+        End If
         Select Case NormalizeType(tool.ToolType)
             Case "backendOnly"
                 Await StartBackendAsync(tool)
@@ -97,6 +103,14 @@ Public Class ToolRuntimeService
         If port > 0 Then PortOverrides(tool.Id) = port
     End Sub
 
+    Public Sub SetRunAsAdministrator(tool As ToolManifestEntry, enabled As Boolean)
+        RunAsAdministratorOverrides(tool.Id) = enabled
+    End Sub
+
+    Public Sub SetBackendOnly(tool As ToolManifestEntry, enabled As Boolean)
+        BackendOnlyOverrides(tool.Id) = enabled
+    End Sub
+
     Public Function GetToolRoot(tool As ToolManifestEntry) As String
         Return InstallService.GetInstallPath(tool)
     End Function
@@ -114,8 +128,14 @@ Public Class ToolRuntimeService
             .WorkingDirectory = workingDirectory,
             .UseShellExecute = False
         }
-        ApplySharedRuntimeEnvironment(info)
-        ApplyEnvironment(endpoint, info, basePath)
+        Dim runAsAdministrator = RunAsAdministratorOverrides.ContainsKey(tool.Id) AndAlso RunAsAdministratorOverrides(tool.Id)
+        If runAsAdministrator Then
+            info.UseShellExecute = True
+            info.Verb = "runas"
+        Else
+            ApplySharedRuntimeEnvironment(info)
+            ApplyEnvironment(endpoint, info, basePath)
+        End If
         For Each argument In endpoint.Arguments
             info.ArgumentList.Add(ApplyPort(argument, port))
         Next

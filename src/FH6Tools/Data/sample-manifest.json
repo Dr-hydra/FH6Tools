@@ -158,6 +158,7 @@
           "kind": "directory"
         }
       ],
+      "telemetryPort": 5555,
       "requiresAdmin": false,
       "riskLevel": "normal",
       "notes": "FH6 Data Out UDP port defaults to 5555; dashboard HTTP/WebSocket port defaults to 8765."
@@ -197,6 +198,7 @@
           "kind": "file"
         }
       ],
+      "telemetryPort": 5300,
       "requiresAdmin": false,
       "riskLevel": "normal",
       "notes": "Receives FH6 UDP telemetry on port 5300; first run may need firewall approval."

@@ -17,9 +17,21 @@ Public Module FhPaths
 
     Public ReadOnly Property ToolsRoot As String
         Get
+            Dim configPath = Path.Combine(AppDataRoot, "tools-root.txt")
+            If File.Exists(configPath) Then
+                Dim configured = File.ReadAllText(configPath).Trim()
+                If Not String.IsNullOrWhiteSpace(configured) Then Return Path.GetFullPath(configured)
+            End If
             Return Path.Combine(AppDataRoot, "tools")
         End Get
     End Property
+
+    Public Sub SetToolsRoot(path As String)
+        If String.IsNullOrWhiteSpace(path) Then Throw New ArgumentException("Tool install path cannot be empty.", NameOf(path))
+        Directory.CreateDirectory(path)
+        Directory.CreateDirectory(AppDataRoot)
+        File.WriteAllText(IO.Path.Combine(AppDataRoot, "tools-root.txt"), IO.Path.GetFullPath(path))
+    End Sub
 
     Public ReadOnly Property ConfigRoot As String
         Get

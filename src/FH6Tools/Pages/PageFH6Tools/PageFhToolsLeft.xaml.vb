@@ -27,8 +27,8 @@ Public Class PageFhToolsLeft
     End Sub
 
     Public Sub UpdateStatus(gameText As String, toolText As String, gameInstalled As Boolean)
-        LabGamePath.Text = gameText
-        LabGamePath.ToolTip = gameText
+        LabGamePlatform.Text = gameText
+        LabGamePlatform.ToolTip = gameText
         BtnLaunchGame.IsEnabled = gameInstalled
     End Sub
 

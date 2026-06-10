@@ -21,9 +21,12 @@ Public Class ToolManifestEntry
     Public Property Frontend As ToolEndpointDefinition
     Public Property [Single] As ToolEndpointDefinition
     Public Property ConfigFiles As List(Of ToolConfigFileEntry) = New List(Of ToolConfigFileEntry)
+    Public Property TelemetryPort As Integer
+    Public Property Hotkeys As List(Of ToolHotkeyDefinition) = New List(Of ToolHotkeyDefinition)
     Public Property RequiresAdmin As Boolean
     Public Property RiskLevel As String = "normal"
     Public Property Notes As String = ""
+    Public Property OnlineStatus As String = "unknown"
     <JsonIgnore>
     Public Property Source As String = "curated"
 End Class
@@ -44,6 +47,12 @@ Public Class ToolConfigFileEntry
     Public Property Kind As String = "file"
 End Class
 
+Public Class ToolHotkeyDefinition
+    Public Property Name As String = ""
+    Public Property DefaultValue As String = ""
+    Public Property Description As String = ""
+End Class
+
 Public Class LocalToolStore
     Public Property Tools As List(Of ToolManifestEntry) = New List(Of ToolManifestEntry)
 End Class
@@ -52,7 +61,20 @@ Public Class ToolInstallState
     Public Property ToolId As String = ""
     Public Property InstallPath As String = ""
     Public Property Port As Integer
+    Public Property ListenAddress As String = "127.0.0.1"
+    Public Property TelemetryPort As Integer
+    Public Property Hotkeys As Dictionary(Of String, String) = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
     Public Property LastLaunchAt As String = ""
+    Public Property LaunchWithGame As Boolean
+    Public Property RunAsAdministrator As Boolean
+    Public Property BackendOnly As Boolean
+End Class
+
+Public Class ToolDownloadProgress
+    Public Property Fraction As Double
+    Public Property BytesReceived As Long
+    Public Property TotalBytes As Long
+    Public Property BytesPerSecond As Double
 End Class
 
 Public Class ToolStateStore

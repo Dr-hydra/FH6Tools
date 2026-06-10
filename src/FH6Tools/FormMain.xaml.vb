@@ -215,7 +215,7 @@ Public Class FormMain
     End Sub
 
     Public Sub UpdateShellStatus(gameText As String, toolText As String)
-        PageNav?.UpdateStatus(PageMain?.GamePathSummary, toolText, PageMain IsNot Nothing AndAlso PageMain.IsGameInstalled)
+        PageNav?.UpdateStatus(PageMain?.GameSummary, toolText, PageMain IsNot Nothing AndAlso PageMain.IsGameInstalled)
     End Sub
 
     Public Async Function LaunchGameFromSidebarAsync() As Task

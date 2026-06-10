@@ -20,11 +20,15 @@ Public Class ToolInstallService
         Dim installPath = GetInstallPath(tool)
         If Not Directory.Exists(installPath) Then Return False
         If Not File.Exists(Path.Combine(installPath, ".fh6tools-version")) Then Return False
-        Return Directory.EnumerateFileSystemEntries(installPath).
-            Any(Function(entryPath) Not String.Equals(IO.Path.GetFileName(entryPath), ".fh6tools-version", StringComparison.OrdinalIgnoreCase))
+        If Not Directory.EnumerateFileSystemEntries(installPath).
+            Any(Function(entryPath) Not String.Equals(IO.Path.GetFileName(entryPath), ".fh6tools-version", StringComparison.OrdinalIgnoreCase)) Then Return False
+        Dim endpoints = {tool.[Single], tool.Backend, tool.Frontend}.
+            Where(Function(endpoint) endpoint IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(endpoint.Executable)).
+            ToList()
+        Return endpoints.Count > 0 AndAlso endpoints.Any(Function(endpoint) Not String.IsNullOrWhiteSpace(ResolveInstalledExecutable(endpoint, installPath)))
     End Function
 
-    Public Async Function DownloadAndInstallAsync(tool As ToolManifestEntry, progress As IProgress(Of Double), cancellationToken As Threading.CancellationToken) As Task(Of String)
+    Public Async Function DownloadAndInstallAsync(tool As ToolManifestEntry, progress As IProgress(Of ToolDownloadProgress), cancellationToken As Threading.CancellationToken) As Task(Of String)
         FhPaths.Ensure()
         If IsBlocked(tool) Then Throw New InvalidOperationException("This tool is blocked by the FH6Tools safety policy.")
         If String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then Return GetInstallPath(tool)
@@ -58,6 +62,21 @@ Public Class ToolInstallService
         Return installPath
     End Function
 
+    Public Async Function ImportZipAsync(zipPath As String, cancellationToken As Threading.CancellationToken) As Task(Of String)
+        Dim target = Path.Combine(FhPaths.ToolsRoot, SafeFileName(Path.GetFileNameWithoutExtension(zipPath)))
+        If Directory.Exists(target) Then Directory.Delete(target, True)
+        Directory.CreateDirectory(target)
+        Await Task.Run(Sub() ZipFile.ExtractToDirectory(zipPath, target), cancellationToken)
+        Return FindImportedExecutable(target)
+    End Function
+
+    Public Async Function ImportFolderAsync(sourcePath As String, cancellationToken As Threading.CancellationToken) As Task(Of String)
+        Dim target = Path.Combine(FhPaths.ToolsRoot, SafeFileName(New DirectoryInfo(sourcePath).Name))
+        If Directory.Exists(target) Then Directory.Delete(target, True)
+        Await Task.Run(Sub() CopyDirectory(sourcePath, target, cancellationToken), cancellationToken)
+        Return FindImportedExecutable(target)
+    End Function
+
     Public Function IsUpdateAvailable(tool As ToolManifestEntry) As Boolean
         If Not IsInstalled(tool) OrElse String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then Return False
         Dim marker = Path.Combine(GetInstallPath(tool), ".fh6tools-version")
@@ -68,6 +87,14 @@ Public Class ToolInstallService
                Not String.Equals(installedVersion, tool.Version, StringComparison.OrdinalIgnoreCase)
     End Function
 
+    Public Sub Uninstall(tool As ToolManifestEntry)
+        If String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then
+            Throw New InvalidOperationException("Imported local folders cannot be removed by FH6Tools.")
+        End If
+        Dim installPath = GetInstallPath(tool)
+        If Directory.Exists(installPath) Then Directory.Delete(installPath, True)
+    End Sub
+
     Public Shared Function ResolveInstalledExecutable(endpoint As ToolEndpointDefinition, installPath As String) As String
         If endpoint Is Nothing OrElse String.IsNullOrWhiteSpace(endpoint.Executable) Then Return ""
         Dim executable = FhPaths.ExpandPath(endpoint.Executable, installPath)
@@ -76,9 +103,10 @@ Public Class ToolInstallService
             Dim pattern = endpoint.Executable.Replace("/"c, "\"c)
             Dim folderPart = Path.GetDirectoryName(pattern)
             Dim filePart = Path.GetFileName(pattern)
-            Dim searchRoot = If(String.IsNullOrWhiteSpace(folderPart), installPath, FhPaths.ExpandPath(folderPart, installPath))
+            Dim recursive = String.IsNullOrWhiteSpace(folderPart) OrElse folderPart.Contains("**")
+            Dim searchRoot = If(recursive, installPath, FhPaths.ExpandPath(folderPart, installPath))
             If Directory.Exists(searchRoot) Then
-                Dim match = Directory.GetFiles(searchRoot, filePart, SearchOption.AllDirectories).FirstOrDefault()
+                Dim match = Directory.GetFiles(searchRoot, filePart, If(recursive, SearchOption.AllDirectories, SearchOption.TopDirectoryOnly)).FirstOrDefault()
                 If match IsNot Nothing Then Return match
             End If
         End If
@@ -146,6 +174,24 @@ Public Class ToolInstallService
         Next
         Return value
     End Function
+
+    Private Shared Function FindImportedExecutable(root As String) As String
+        Dim executable = Directory.GetFiles(root, "*.exe", SearchOption.AllDirectories).FirstOrDefault()
+        If executable Is Nothing Then Throw New FileNotFoundException("The imported tool does not contain an executable.")
+        Return executable
+    End Function
+
+    Private Shared Sub CopyDirectory(source As String, target As String, cancellationToken As Threading.CancellationToken)
+        Directory.CreateDirectory(target)
+        For Each file In Directory.GetFiles(source)
+            cancellationToken.ThrowIfCancellationRequested()
+            IO.File.Copy(file, Path.Combine(target, Path.GetFileName(file)), True)
+        Next
+        For Each directory In IO.Directory.GetDirectories(source)
+            cancellationToken.ThrowIfCancellationRequested()
+            CopyDirectory(directory, Path.Combine(target, IO.Path.GetFileName(directory)), cancellationToken)
+        Next
+    End Sub
 
     Private Class ResolvedDownload
         Public Property Url As String = ""

@@ -73,15 +73,20 @@ Public Class ToolManifestService
                                                   Using document = JsonDocument.Parse(json)
                                                       Dim root = document.RootElement
                                                       Dim asset = SelectPreferredAsset(root.GetProperty("assets"), repo.Value.Owner)
-                                                      If asset.ValueKind = JsonValueKind.Undefined Then Return False
+                                                      If asset.ValueKind = JsonValueKind.Undefined Then
+                                                          tool.OnlineStatus = "unavailable"
+                                                          Return True
+                                                      End If
                                                       tool.Version = root.GetProperty("tag_name").GetString()
                                                       tool.DownloadUrl = asset.GetProperty("browser_download_url").GetString()
                                                       tool.InstallType = If(asset.GetProperty("name").GetString().EndsWith(".zip", StringComparison.OrdinalIgnoreCase), "zip", "portableExe")
+                                                      tool.OnlineStatus = "available"
                                                       Return True
                                                   End Using
                                               Catch ex As Exception
+                                                  tool.OnlineStatus = "unavailable"
                                                   Logger.Warn(ex, $"Release metadata refresh failed for {tool.Name}.")
-                                                  Return False
+                                                  Return True
                                               End Try
                                           End Function).ToArray()
         For Each result In Await Task.WhenAll(tasks)

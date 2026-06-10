@@ -99,10 +99,10 @@ Public Class GameLaunchService
                             Dim path = TryCast(app.GetValue("InstallLocation"), String)
                             Return New GameInstallState With {
                                 .IsInstalled = True,
-                                .Source = "Windows",
+                                .Source = "Xbox",
                                 .InstallPath = If(path, ""),
-                                .LaunchCommand = If(String.IsNullOrWhiteSpace(path), "ms-windows-store://search/?query=Forza%20Horizon%206", path),
-                                .Message = "Windows app registry entry detected."
+                                .LaunchCommand = "xbox://game/?title=Forza%20Horizon%206",
+                                .Message = "Xbox app registry entry detected."
                             }
                         End Using
                     Next

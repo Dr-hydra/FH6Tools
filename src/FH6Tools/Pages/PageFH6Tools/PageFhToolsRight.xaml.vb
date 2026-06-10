@@ -1,7 +1,10 @@
 Imports System.Collections.ObjectModel
+Imports System.ComponentModel
+Imports System.Runtime.CompilerServices
 Imports Microsoft.Win32
 
 Public Class PageFhToolsRight
+    Private Shared ReadOnly AppUpdateClient As New HttpClient With {.Timeout = TimeSpan.FromSeconds(5)}
 
     Private ReadOnly ManifestService As New ToolManifestService
     Private ReadOnly RuntimeService As New ToolRuntimeService
@@ -11,10 +14,14 @@ Public Class PageFhToolsRight
     Private ReadOnly ConfigService As New ConfigSnapshotService
     Private ReadOnly ToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly InstalledToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
+    Private ReadOnly DownloadTasksSource As New ObservableCollection(Of DownloadTaskViewModel)
     Private CurrentTools As List(Of ToolManifestEntry) = New List(Of ToolManifestEntry)
+    Private CurrentState As ToolStateStore = New ToolStateStore
     Private CurrentGame As GameInstallState = New GameInstallState
     Private ActiveDownloadCancellation As Threading.CancellationTokenSource
-    Private ReadOnly PendingInstallTools As New Queue(Of ToolManifestEntry)
+    Private ReadOnly PendingInstallTools As New Queue(Of DownloadTaskViewModel)
+    Private ActiveDownloadTask As DownloadTaskViewModel
+    Private PauseRequested As Boolean
     Private IsDownloadQueueRunning As Boolean
     Private CurrentPage As FhShellPage = FhShellPage.Home
 
@@ -49,7 +56,11 @@ Public Class PageFhToolsRight
         DownloadToolCards.ItemsSource = ToolCardsSource
         InstalledToolCards.ItemsSource = InstalledToolCardsSource
         ConfigToolCards.ItemsSource = InstalledToolCardsSource
-        ComboLanguage.SelectedIndex = If(FhLanguage.IsEnglish, 1, 0)
+        DownloadTasks.ItemsSource = DownloadTasksSource
+        RadioLanguageZh.SetChecked(Not FhLanguage.IsEnglish, False)
+        RadioLanguageEn.SetChecked(FhLanguage.IsEnglish, False)
+        RadioStartupOn.SetChecked(IsStartupEnabled(), False)
+        RadioStartupOff.SetChecked(Not IsStartupEnabled(), False)
         Await LoadToolsFastAsync()
         Configure(CurrentPage)
         ApplyLanguage()
@@ -61,6 +72,7 @@ Public Class PageFhToolsRight
     Public Async Sub InitializeDeferred()
         Try
             Await InitializeAsync()
+            Await CheckAppUpdateAsync(False)
         Catch ex As Exception
             Logger.Error(ex, "Deferred initialization failed.", LogBehavior.Toast)
         End Try
@@ -81,11 +93,10 @@ Public Class PageFhToolsRight
     Public Sub ApplyLanguage()
         CardDownloads.Title = FhLanguage.Text("下载管理", "Downloads")
         LabDownloadDescription.Text = FhLanguage.Text("下载与安装任务保存在软件旁的 FH6ToolsData 目录。", "Downloads and install jobs are stored in FH6ToolsData beside the app.")
-        BtnReloadManifest.Text = FhLanguage.Text("重新加载工具清单", "Reload Manifest")
-        BtnReloadManifest2.Text = FhLanguage.Text("刷新工具状态", "Refresh Tool Status")
-        BtnOpenDownloads.Text = FhLanguage.Text("打开下载目录", "Open Downloads")
-        BtnCancelDownload.Text = FhLanguage.Text("取消当前任务", "Cancel Current Job")
-        BtnCancelDownload2.Text = FhLanguage.Text("取消全部任务", "Cancel All Jobs")
+        BtnReloadManifest.Text = FhLanguage.Text("检查更新", "Check Updates")
+        BtnChangeInstallRoot.Text = FhLanguage.Text("更改安装位置", "Change Install Location")
+        BtnImportZip.Text = FhLanguage.Text("导入 ZIP", "Import ZIP")
+        BtnImportFolder.Text = FhLanguage.Text("添加文件夹", "Add Folder")
         CardConfig.Title = FhLanguage.Text("常规设置", "General Settings")
         CardGameData.Title = FhLanguage.Text("游戏与数据", "Game and Data")
         LabLanguageTitle.Text = FhLanguage.Text("界面语言", "Interface Language")
@@ -114,13 +125,18 @@ Public Class PageFhToolsRight
     Private Async Function RefreshGameAsync() As Task
         CurrentGame = Await GameService.DetectAsync()
         BtnOpenGameFolder.IsEnabled = CurrentGame.IsInstalled AndAlso Not String.IsNullOrWhiteSpace(CurrentGame.InstallPath)
+        LabGameDetectionStatus.Text = If(CurrentGame.IsInstalled,
+                                         FhLanguage.Text($"已检测到 {CurrentGame.Source} 版本", $"Detected {CurrentGame.Source} version"),
+                                         FhLanguage.Text("未检测到游戏", "Game not detected"))
         Configure(CurrentPage)
         FrmMain?.UpdateShellStatus(GameSummary, ToolsSummary)
     End Function
 
     Private Async Function RefreshToolsAsync() As Task
         CurrentTools = Await ManifestService.LoadToolsAsync()
-        Dim statusTasks = CurrentTools.Select(Async Function(tool) New ToolCardViewModel(tool, Await RuntimeService.GetStatusAsync(tool), InstallService.IsUpdateAvailable(tool))).ToArray()
+        CurrentState = Await ManifestService.LoadStateAsync()
+        ApplyRuntimeOverrides()
+        Dim statusTasks = CurrentTools.Select(Async Function(tool) New ToolCardViewModel(tool, Await RuntimeService.GetStatusAsync(tool), InstallService.IsUpdateAvailable(tool), GetToolState(tool.Id))).ToArray()
         Dim cards = Await Task.WhenAll(statusTasks)
         ToolCardsSource.Clear()
         InstalledToolCardsSource.Clear()
@@ -136,6 +152,8 @@ Public Class PageFhToolsRight
 
     Private Async Function LoadToolsFastAsync() As Task
         CurrentTools = Await ManifestService.LoadToolsAsync()
+        CurrentState = Await ManifestService.LoadStateAsync()
+        ApplyRuntimeOverrides()
         ToolCardsSource.Clear()
         InstalledToolCardsSource.Clear()
         For Each tool In CurrentTools
@@ -144,7 +162,7 @@ Public Class PageFhToolsRight
                 .IsInstalled = InstallService.IsInstalled(tool),
                 .Message = If(InstallService.IsInstalled(tool), "ready", "not installed")
             }
-            Dim card = New ToolCardViewModel(tool, status, InstallService.IsUpdateAvailable(tool))
+            Dim card = New ToolCardViewModel(tool, status, InstallService.IsUpdateAvailable(tool), GetToolState(tool.Id))
             ToolCardsSource.Add(card)
             If status.IsInstalled Then InstalledToolCardsSource.Add(card)
         Next
@@ -210,6 +228,20 @@ Public Class PageFhToolsRight
 
     Public Async Function LaunchCurrentGameAsync() As Task
         Try
+            CurrentState = Await ManifestService.LoadStateAsync()
+            Dim launchEntries = CurrentState.Tools.Where(Function(item) item.LaunchWithGame).ToList()
+            If Not ConfirmLaunchConflicts(launchEntries) Then Return
+            For Each entry In launchEntries
+                Dim tool = CurrentTools.FirstOrDefault(Function(candidate) candidate.Id.Equals(entry.ToolId, StringComparison.OrdinalIgnoreCase))
+                If tool Is Nothing OrElse Not InstallService.IsInstalled(tool) Then Continue For
+                Dim portConflict As ToolPortConflictException = Nothing
+                Try
+                    Await RuntimeService.StartAllAsync(tool)
+                Catch conflict As ToolPortConflictException
+                    portConflict = conflict
+                End Try
+                If portConflict IsNot Nothing Then Await ResolvePortConflictAsync(portConflict.Tool, portConflict.Port)
+            Next
             Await GameService.LaunchAsync(CurrentGame)
             Await RefreshGameAsync()
             Hint(FhLanguage.Text("已请求启动地平线 6。", "FH6 launch requested."), HintType.Green)
@@ -217,6 +249,105 @@ Public Class PageFhToolsRight
             Hint(ex.Message, HintType.Red)
         End Try
     End Function
+
+    Private Function ConfirmLaunchConflicts(entries As List(Of ToolInstallState)) As Boolean
+        Dim conflicts As New List(Of String)
+        Dim runningIds = New HashSet(Of String)(InstalledToolCardsSource.Where(Function(card) card.Status.IsRunning).Select(Function(card) card.Tool.Id), StringComparer.OrdinalIgnoreCase)
+        Dim relevantEntries = entries.Concat(CurrentState.Tools.Where(Function(item) runningIds.Contains(item.ToolId))).
+            GroupBy(Function(item) item.ToolId, StringComparer.OrdinalIgnoreCase).Select(Function(candidateGroup) candidateGroup.First()).ToList()
+        Dim servicePorts = relevantEntries.Select(Function(item)
+                                                      Dim tool = CurrentTools.FirstOrDefault(Function(candidate) candidate.Id.Equals(item.ToolId, StringComparison.OrdinalIgnoreCase))
+                                                      Return If(item.Port > 0, item.Port, If(tool Is Nothing, 0, RuntimeService.GetConfiguredPort(tool)))
+                                                  End Function)
+        For Each portGroup In servicePorts.Where(Function(port) port > 0).GroupBy(Function(port) port).Where(Function(candidate) candidate.Count > 1)
+            conflicts.Add(FhLanguage.Text($"服务端口 {portGroup.Key} 被多个工具使用", $"Service port {portGroup.Key} is used by multiple tools"))
+        Next
+        Dim telemetryPorts = relevantEntries.Select(Function(item)
+                                                        Dim tool = CurrentTools.FirstOrDefault(Function(candidate) candidate.Id.Equals(item.ToolId, StringComparison.OrdinalIgnoreCase))
+                                                        Return If(item.TelemetryPort > 0, item.TelemetryPort, If(tool Is Nothing, 0, tool.TelemetryPort))
+                                                    End Function)
+        For Each telemetryGroup In telemetryPorts.Where(Function(port) port > 0).GroupBy(Function(port) port).Where(Function(candidate) candidate.Count > 1)
+            conflicts.Add(FhLanguage.Text($"游戏遥测端口 {telemetryGroup.Key} 被多个工具使用", $"Game telemetry port {telemetryGroup.Key} is used by multiple tools"))
+        Next
+        For Each hotkeyGroup In relevantEntries.SelectMany(Function(item) If(item.Hotkeys, New Dictionary(Of String, String)).Values).
+            Where(Function(value) Not String.IsNullOrWhiteSpace(value)).
+            GroupBy(Function(value) value, StringComparer.OrdinalIgnoreCase).
+            Where(Function(candidate) candidate.Count > 1)
+            conflicts.Add(FhLanguage.Text($"热键 {hotkeyGroup.Key} 被多个工具使用", $"Hotkey {hotkeyGroup.Key} is used by multiple tools"))
+        Next
+        If conflicts.Count = 0 Then Return True
+        Return MessageBox.Show(String.Join(vbCrLf, conflicts) & vbCrLf & vbCrLf & FhLanguage.Text("是否仍然继续？", "Continue anyway?"),
+                               FhLanguage.Text("启动配置冲突", "Launch configuration conflict"),
+                               MessageBoxButton.YesNo, MessageBoxImage.Warning) = MessageBoxResult.Yes
+    End Function
+
+    Private Function GetToolState(toolId As String) As ToolInstallState
+        Dim state = CurrentState.Tools.FirstOrDefault(Function(item) item.ToolId.Equals(toolId, StringComparison.OrdinalIgnoreCase))
+        If state IsNot Nothing Then Return state
+        state = New ToolInstallState With {.ToolId = toolId}
+        CurrentState.Tools.Add(state)
+        Return state
+    End Function
+
+    Private Sub ApplyRuntimeOverrides()
+        For Each tool In CurrentTools
+            Dim state = GetToolState(tool.Id)
+            RuntimeService.SetRunAsAdministrator(tool, state.RunAsAdministrator)
+            RuntimeService.SetBackendOnly(tool, state.BackendOnly)
+            If state.Port > 0 Then RuntimeService.SetPortOverride(tool, state.Port)
+        Next
+    End Sub
+
+    Private Async Sub ToolLaunchWithGame_Change(sender As Object, user As Boolean)
+        If Not user Then Return
+        Dim checkbox = TryCast(sender, MyCheckBox)
+        Dim viewModel = TryCast(checkbox?.DataContext, ToolCardViewModel)
+        If viewModel Is Nothing Then Return
+        CurrentState = Await ManifestService.LoadStateAsync()
+        GetToolState(viewModel.Tool.Id).LaunchWithGame = checkbox.Checked
+        Await ManifestService.SaveStateAsync(CurrentState)
+    End Sub
+
+    Private Async Sub ToolRunAsAdministrator_Change(sender As Object, user As Boolean)
+        If Not user Then Return
+        Dim checkbox = TryCast(sender, MyCheckBox)
+        Dim viewModel = TryCast(checkbox?.DataContext, ToolCardViewModel)
+        If viewModel Is Nothing Then Return
+        CurrentState = Await ManifestService.LoadStateAsync()
+        GetToolState(viewModel.Tool.Id).RunAsAdministrator = checkbox.Checked
+        RuntimeService.SetRunAsAdministrator(viewModel.Tool, checkbox.Checked)
+        Await ManifestService.SaveStateAsync(CurrentState)
+    End Sub
+
+    Private Async Sub ToolBackendOnly_Change(sender As Object, user As Boolean)
+        If Not user Then Return
+        Dim checkbox = TryCast(sender, MyCheckBox)
+        Dim viewModel = TryCast(checkbox?.DataContext, ToolCardViewModel)
+        If viewModel Is Nothing Then Return
+        CurrentState = Await ManifestService.LoadStateAsync()
+        GetToolState(viewModel.Tool.Id).BackendOnly = checkbox.Checked
+        RuntimeService.SetBackendOnly(viewModel.Tool, checkbox.Checked)
+        Await ManifestService.SaveStateAsync(CurrentState)
+    End Sub
+
+    Private Async Sub ToolSaveRuntimeConfig_Click(sender As Object, e As MouseButtonEventArgs)
+        Dim viewModel = TryCast(TryCast(sender, FrameworkElement)?.DataContext, ToolCardViewModel)
+        If viewModel Is Nothing Then Return
+        Dim port As Integer
+        If viewModel.HasPort AndAlso (Not Integer.TryParse(viewModel.PortText, port) OrElse port < 1 OrElse port > 65535) Then
+            Hint(FhLanguage.Text("服务监听端口必须在 1 到 65535 之间。", "Service port must be between 1 and 65535."), HintType.Red)
+            Return
+        End If
+        CurrentState = Await ManifestService.LoadStateAsync()
+        Dim state = GetToolState(viewModel.Tool.Id)
+        state.ListenAddress = viewModel.ListenAddress.Trim()
+        state.Port = If(viewModel.HasPort, port, 0)
+        state.TelemetryPort = viewModel.Tool.TelemetryPort
+        state.Hotkeys = viewModel.ParseHotkeys()
+        If state.Port > 0 Then RuntimeService.SetPortOverride(viewModel.Tool, state.Port)
+        Await ManifestService.SaveStateAsync(CurrentState)
+        Hint(FhLanguage.Text("运行配置已保存。", "Runtime configuration saved."), HintType.Green)
+    End Sub
 
     Private Async Sub BtnBindGame_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnBindGame.Click
         Dim dialog As New OpenFileDialog With {.Filter = "Executable (*.exe)|*.exe|All files (*.*)|*.*", .Title = "Bind FH6 executable"}
@@ -260,23 +391,41 @@ Public Class PageFhToolsRight
         End Try
     End Sub
 
-    Private Async Sub BtnReloadManifest_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnReloadManifest.Click, BtnReloadManifest2.Click
+    Private Async Sub BtnReloadManifest_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnReloadManifest.Click
         Await RefreshManifestAndToolsAsync()
         LabDownloadStatus.Text = "Manifest reloaded from " & FhPaths.ManifestPath
     End Sub
 
-    Private Sub BtnCancelDownload_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnCancelDownload.Click, BtnCancelDownload2.Click
-        If ActiveDownloadCancellation IsNot Nothing Then
-            ActiveDownloadCancellation.Cancel()
-            LabDownloadStatus.Text = "Download cancellation requested."
-        Else
-            LabDownloadStatus.Text = "No active download job to cancel."
+    Private Sub BtnChangeInstallRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnChangeInstallRoot.Click
+        Dim dialog As New OpenFolderDialog With {.Title = FhLanguage.Text("选择工具安装位置", "Choose tool install location"), .InitialDirectory = FhPaths.ToolsRoot}
+        If dialog.ShowDialog() Then
+            FhPaths.SetToolsRoot(dialog.FolderName)
+            LabDownloadStatus.Text = FhLanguage.Text("工具安装位置已更改为：", "Tool install location changed to: ") & dialog.FolderName
         End If
     End Sub
 
-    Private Sub BtnOpenDownloads_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenDownloads.Click
-        FhPaths.Ensure()
-        Process.Start(New ProcessStartInfo With {.FileName = FhPaths.DownloadRoot, .UseShellExecute = True})
+    Private Async Sub BtnImportZip_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnImportZip.Click
+        Dim dialog As New OpenFileDialog With {.Title = FhLanguage.Text("导入工具压缩包", "Import tool archive"), .Filter = "ZIP archive (*.zip)|*.zip"}
+        If Not dialog.ShowDialog() Then Return
+        Try
+            Dim executable = Await InstallService.ImportZipAsync(dialog.FileName, Threading.CancellationToken.None)
+            Await ManifestService.AddLocalToolAsync(executable)
+            Await RefreshToolsAsync()
+        Catch ex As Exception
+            Hint(ex.Message, HintType.Red)
+        End Try
+    End Sub
+
+    Private Async Sub BtnImportFolder_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnImportFolder.Click
+        Dim dialog As New OpenFolderDialog With {.Title = FhLanguage.Text("添加本地工具文件夹", "Add local tool folder")}
+        If Not dialog.ShowDialog() Then Return
+        Try
+            Dim executable = Await InstallService.ImportFolderAsync(dialog.FolderName, Threading.CancellationToken.None)
+            Await ManifestService.AddLocalToolAsync(executable)
+            Await RefreshToolsAsync()
+        Catch ex As Exception
+            Hint(ex.Message, HintType.Red)
+        End Try
     End Sub
 
     Private Sub BtnOpenConfigRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenConfigRoot.Click
@@ -284,19 +433,83 @@ Public Class PageFhToolsRight
         Process.Start(New ProcessStartInfo With {.FileName = FhPaths.ConfigRoot, .UseShellExecute = True})
     End Sub
 
+    Private Sub BtnOpenAppRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenAppRoot.Click
+        Process.Start(New ProcessStartInfo With {.FileName = AppContext.BaseDirectory, .UseShellExecute = True})
+    End Sub
+
     Private Sub BtnOpenDataRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenDataRoot.Click
         FhPaths.Ensure()
         Process.Start(New ProcessStartInfo With {.FileName = FhPaths.AppDataRoot, .UseShellExecute = True})
     End Sub
 
-    Private Async Sub ComboLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs) Handles ComboLanguage.SelectionChanged
-        If Not IsLoaded OrElse ComboLanguage.SelectedIndex < 0 Then Return
-        Dim language = If(ComboLanguage.SelectedIndex = 1, "en-US", "zh-CN")
+    Private Async Sub RadioLanguage_Check(sender As Object, e As RouteEventArgs) Handles RadioLanguageZh.Check, RadioLanguageEn.Check
+        If Not IsLoaded Then Return
+        Dim radio = TryCast(sender, FrameworkElement)
+        Dim language = CStr(radio?.Tag)
         If String.Equals(language, FhLanguage.Current, StringComparison.OrdinalIgnoreCase) Then Return
         FhLanguage.SetLanguage(language)
         FrmMain?.ApplyLanguage()
         Await RefreshToolsAsync()
     End Sub
+
+    Private Sub RadioStartup_Check(sender As Object, e As RouteEventArgs) Handles RadioStartupOn.Check, RadioStartupOff.Check
+        If Not IsLoaded Then Return
+        SetStartupEnabled(ReferenceEquals(sender, RadioStartupOn))
+    End Sub
+
+    Private Shared Function IsStartupEnabled() As Boolean
+        Try
+            Using key = Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Run")
+                Return key?.GetValue("FH6Tools") IsNot Nothing
+            End Using
+        Catch
+            Return False
+        End Try
+    End Function
+
+    Private Shared Sub SetStartupEnabled(enabled As Boolean)
+        Try
+            Using key = Registry.CurrentUser.CreateSubKey("Software\Microsoft\Windows\CurrentVersion\Run")
+                If enabled Then
+                    key.SetValue("FH6Tools", """" & Environment.ProcessPath & """")
+                Else
+                    key.DeleteValue("FH6Tools", False)
+                End If
+            End Using
+        Catch ex As Exception
+            Hint(ex.Message, HintType.Red)
+        End Try
+    End Sub
+
+    Private Sub BtnOpenProject_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenProject.Click
+        Process.Start(New ProcessStartInfo With {.FileName = "https://github.com/Dr-hydra/FH6Tools", .UseShellExecute = True})
+    End Sub
+
+    Private Async Sub BtnCheckAppUpdate_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnCheckAppUpdate.Click
+        Await CheckAppUpdateAsync(True)
+    End Sub
+
+    Private Shared Async Function CheckAppUpdateAsync(showNoUpdate As Boolean) As Task
+        Try
+            Using request As New HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/Dr-hydra/FH6Tools/releases/latest")
+                request.Headers.UserAgent.ParseAdd("FH6Tools")
+                Using response = Await AppUpdateClient.SendAsync(request)
+                    If Not response.IsSuccessStatusCode Then Return
+                    Using document = System.Text.Json.JsonDocument.Parse(Await response.Content.ReadAsStringAsync())
+                        Dim latest = document.RootElement.GetProperty("tag_name").GetString()
+                        Dim current = Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()
+                        If Not String.Equals(latest?.TrimStart("v"c), current, StringComparison.OrdinalIgnoreCase) Then
+                            Hint(FhLanguage.Text($"发现新版本：{latest}", $"New version available: {latest}"), HintType.Green)
+                        ElseIf showNoUpdate Then
+                            Hint(FhLanguage.Text("当前已是最新版本。", "FH6Tools is up to date."), HintType.Green)
+                        End If
+                    End Using
+                End Using
+            End Using
+        Catch
+            ' Startup update checks are intentionally silent on network errors.
+        End Try
+    End Function
 
     Private Async Sub ToolStartAll_Click(sender As Object, e As MouseButtonEventArgs)
         Await RunToolActionAsync(sender, Async Function(tool)
@@ -358,7 +571,9 @@ Public Class PageFhToolsRight
     Private Async Sub ToolInstall_Click(sender As Object, e As MouseButtonEventArgs)
         Dim tool = GetToolFromSender(sender)
         If tool Is Nothing Then Return
-        PendingInstallTools.Enqueue(tool)
+        Dim task = New DownloadTaskViewModel(tool)
+        DownloadTasksSource.Add(task)
+        PendingInstallTools.Enqueue(task)
         LabDownloadStatus.Text = $"Queued {tool.Name}. Pending jobs: {PendingInstallTools.Count}"
         Await ProcessInstallQueueAsync()
     End Sub
@@ -366,9 +581,41 @@ Public Class PageFhToolsRight
     Private Async Sub IconToolInstall_Click(sender As Object, e As EventArgs)
         Dim tool = GetToolFromSender(sender)
         If tool Is Nothing Then Return
-        PendingInstallTools.Enqueue(tool)
+        Dim task = New DownloadTaskViewModel(tool)
+        DownloadTasksSource.Add(task)
+        PendingInstallTools.Enqueue(task)
         LabDownloadStatus.Text = $"Queued {tool.Name}. Pending jobs: {PendingInstallTools.Count}"
         Await ProcessInstallQueueAsync()
+    End Sub
+
+    Private Sub ToolOpenProject_Click(sender As Object, e As EventArgs)
+        Dim tool = GetToolFromSender(sender)
+        If tool Is Nothing OrElse String.IsNullOrWhiteSpace(tool.Homepage) Then Return
+        Process.Start(New ProcessStartInfo With {.FileName = tool.Homepage, .UseShellExecute = True})
+    End Sub
+
+    Private Async Sub DownloadTaskPause_Click(sender As Object, e As MouseButtonEventArgs)
+        Dim task = TryCast(TryCast(sender, FrameworkElement)?.DataContext, DownloadTaskViewModel)
+        If task Is Nothing Then Return
+        If task.IsPaused Then
+            task.IsPaused = False
+            task.StatusText = FhLanguage.Text("等待继续", "Waiting to resume")
+            PendingInstallTools.Enqueue(task)
+            Await ProcessInstallQueueAsync()
+        ElseIf task Is ActiveDownloadTask AndAlso ActiveDownloadCancellation IsNot Nothing Then
+            PauseRequested = True
+            task.IsPaused = True
+            task.StatusText = FhLanguage.Text("正在暂停", "Pausing")
+            ActiveDownloadCancellation.Cancel()
+        End If
+    End Sub
+
+    Private Sub DownloadTaskCancel_Click(sender As Object, e As MouseButtonEventArgs)
+        Dim task = TryCast(TryCast(sender, FrameworkElement)?.DataContext, DownloadTaskViewModel)
+        If task Is Nothing Then Return
+        task.IsCancelled = True
+        task.StatusText = FhLanguage.Text("已取消", "Cancelled")
+        If task Is ActiveDownloadTask AndAlso ActiveDownloadCancellation IsNot Nothing Then ActiveDownloadCancellation.Cancel()
     End Sub
 
     Private Async Function ProcessInstallQueueAsync() As Task
@@ -376,24 +623,37 @@ Public Class PageFhToolsRight
         IsDownloadQueueRunning = True
         Try
             While PendingInstallTools.Count > 0
-                Dim tool = PendingInstallTools.Dequeue()
+                Dim downloadTask = PendingInstallTools.Dequeue()
+                If downloadTask.IsCancelled OrElse downloadTask.IsPaused Then Continue While
+                Dim tool = downloadTask.Tool
+                ActiveDownloadTask = downloadTask
+                downloadTask.StatusText = FhLanguage.Text("正在下载", "Downloading")
                 ActiveDownloadCancellation = New Threading.CancellationTokenSource()
+                PauseRequested = False
                 Try
-                    Dim progress As New Progress(Of Double)(Sub(value)
-                                                                LabDownloadStatus.Text = $"Installing {tool.Name}: {Math.Round(value * 100)}% | Pending: {PendingInstallTools.Count}"
-                                                            End Sub)
+                    Dim progress As New Progress(Of ToolDownloadProgress)(Sub(value)
+                                                                            downloadTask.UpdateProgress(value)
+                                                                            LabDownloadStatus.Text = $"Installing {tool.Name}: {Math.Round(value.Fraction * 100)}% | Pending: {PendingInstallTools.Count}"
+                                                                        End Sub)
                     Dim installPath = Await InstallService.DownloadAndInstallAsync(tool, progress, ActiveDownloadCancellation.Token)
+                    downloadTask.StatusText = FhLanguage.Text("已完成", "Completed")
                     LabDownloadStatus.Text = $"Installed {tool.Name} to {installPath}"
                     Await RefreshToolsAsync()
                 Catch ex As OperationCanceledException
-                    LabDownloadStatus.Text = $"Cancelled install for {tool.Name}."
-                    PendingInstallTools.Clear()
+                    If PauseRequested Then
+                        downloadTask.StatusText = FhLanguage.Text("已暂停", "Paused")
+                    Else
+                        downloadTask.IsCancelled = True
+                        downloadTask.StatusText = FhLanguage.Text("已取消", "Cancelled")
+                    End If
                 Catch ex As Exception
+                    downloadTask.StatusText = FhLanguage.Text("失败：", "Failed: ") & ex.Message
                     LabDownloadStatus.Text = $"Install failed for {tool.Name}: {ex.Message}"
                     Hint(ex.Message, HintType.Red)
                 Finally
                     ActiveDownloadCancellation.Dispose()
                     ActiveDownloadCancellation = Nothing
+                    ActiveDownloadTask = Nothing
                 End Try
             End While
             If ActiveDownloadCancellation Is Nothing Then LabDownloadStatus.Text &= If(PendingInstallTools.Count = 0, " Queue idle.", "")
@@ -408,6 +668,23 @@ Public Class PageFhToolsRight
 
     Private Sub IconToolOpenFolder_Click(sender As Object, e As EventArgs)
         OpenToolFolder(sender)
+    End Sub
+
+    Private Sub HeaderToolOpenFolder_Click(sender As Object, e As RouteEventArgs)
+        OpenToolFolder(sender)
+    End Sub
+
+    Private Async Sub HeaderToolUninstall_Click(sender As Object, e As RouteEventArgs)
+        Dim tool = GetToolFromSender(sender)
+        If tool Is Nothing Then Return
+        If MessageBox.Show(FhLanguage.Text($"确定卸载 {tool.Name}？", $"Uninstall {tool.Name}?"), "FH6Tools", MessageBoxButton.YesNo, MessageBoxImage.Warning) <> MessageBoxResult.Yes Then Return
+        Try
+            RuntimeService.StopTool(tool)
+            InstallService.Uninstall(tool)
+            Await RefreshToolsAsync()
+        Catch ex As Exception
+            Hint(ex.Message, HintType.Red)
+        End Try
     End Sub
 
     Private Sub OpenToolFolder(sender As Object)
@@ -534,11 +811,27 @@ Public Class ToolCardViewModel
     Public ReadOnly Property Tool As ToolManifestEntry
     Public ReadOnly Property Status As ToolRuntimeStatus
     Public ReadOnly Property UpdateAvailable As Boolean
+    Public ReadOnly Property LaunchWithGame As Boolean
+    Public ReadOnly Property RunAsAdministrator As Boolean
+    Public ReadOnly Property BackendOnly As Boolean
+    Public Property ListenAddress As String
+    Public Property PortText As String
+    Public Property HotkeyText As String
 
-    Public Sub New(tool As ToolManifestEntry, status As ToolRuntimeStatus, Optional updateAvailable As Boolean = False)
+    Public Sub New(tool As ToolManifestEntry, status As ToolRuntimeStatus, Optional updateAvailable As Boolean = False, Optional state As ToolInstallState = Nothing)
         Me.Tool = tool
         Me.Status = status
         Me.UpdateAvailable = updateAvailable
+        Me.LaunchWithGame = state?.LaunchWithGame
+        Me.RunAsAdministrator = state?.RunAsAdministrator
+        Me.BackendOnly = state?.BackendOnly
+        Me.ListenAddress = If(String.IsNullOrWhiteSpace(state?.ListenAddress), "127.0.0.1", state.ListenAddress)
+        Me.PortText = If(If(state?.Port, 0) > 0, state.Port.ToString(), Status.Port.ToString())
+        Dim configuredHotkeys = If(state?.Hotkeys, New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase))
+        If configuredHotkeys.Count = 0 AndAlso tool.Hotkeys IsNot Nothing Then
+            configuredHotkeys = tool.Hotkeys.ToDictionary(Function(item) item.Name, Function(item) item.DefaultValue, StringComparer.OrdinalIgnoreCase)
+        End If
+        Me.HotkeyText = String.Join("; ", configuredHotkeys.Select(Function(item) $"{item.Key}={item.Value}"))
     End Sub
 
     Public ReadOnly Property DisplayName As String
@@ -547,18 +840,76 @@ Public Class ToolCardViewModel
         End Get
     End Property
 
+    Public ReadOnly Property HasBackend As Boolean
+        Get
+            Return Tool.Backend IsNot Nothing
+        End Get
+    End Property
+
+    Public ReadOnly Property HasPort As Boolean
+        Get
+            Return Status.Port > 0 OrElse Tool.Backend?.DefaultPort > 0 OrElse Tool.[Single]?.DefaultPort > 0
+        End Get
+    End Property
+
+    Public ReadOnly Property HasHotkeys As Boolean
+        Get
+            Return Tool.Hotkeys IsNot Nothing AndAlso Tool.Hotkeys.Count > 0
+        End Get
+    End Property
+
+    Public ReadOnly Property TelemetryPortLine As String
+        Get
+            If Tool.TelemetryPort <= 0 Then Return FhLanguage.Text("游戏遥测端口：无", "Game telemetry port: none")
+            Return FhLanguage.Text($"游戏遥测端口：{Tool.TelemetryPort}", $"Game telemetry port: {Tool.TelemetryPort}")
+        End Get
+    End Property
+
+    Public Function ParseHotkeys() As Dictionary(Of String, String)
+        Dim result As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+        For Each part In If(HotkeyText, "").Split(";"c)
+            Dim pair = part.Split({"="c}, 2)
+            If pair.Length = 2 AndAlso Not String.IsNullOrWhiteSpace(pair(0)) AndAlso Not String.IsNullOrWhiteSpace(pair(1)) Then
+                result(pair(0).Trim()) = pair(1).Trim()
+            End If
+        Next
+        Return result
+    End Function
+
+    Public ReadOnly Property RuntimeDisplayName As String
+        Get
+            Return $"{Tool.Name}  ·  {FhLanguage.Text(If(Status.IsRunning, "正在运行", "未运行"), If(Status.IsRunning, "Running", "Not running"))}"
+        End Get
+    End Property
+
+    Public ReadOnly Property RuntimeSummaryLine As String
+        Get
+            Dim parts As New List(Of String) From {FhLanguage.Text("版本 ", "Version ") & If(Tool.Version, "-")}
+            If Status.Port > 0 Then parts.Add(FhLanguage.Text("监听端口 ", "Port ") & Status.Port)
+            If Tool.TelemetryPort > 0 Then parts.Add(FhLanguage.Text("游戏遥测端口 ", "Telemetry ") & Tool.TelemetryPort)
+            If Tool.Hotkeys IsNot Nothing Then
+                parts.AddRange(Tool.Hotkeys.Where(Function(item) Not String.IsNullOrWhiteSpace(item.DefaultValue)).
+                    Select(Function(item) $"{item.DefaultValue}: {item.Description}"))
+            End If
+            If Not String.IsNullOrWhiteSpace(Tool.Description) Then parts.Add(Tool.Description.ReplaceLineEndings(" "))
+            Return String.Join("  ·  ", parts)
+        End Get
+    End Property
+
     Public ReadOnly Property DownloadStateText As String
         Get
             If ToolInstallService.IsBlocked(Tool) Then Return FhLanguage.Text("不可下载", "Unavailable")
             If UpdateAvailable Then Return FhLanguage.Text("有可用更新", "Update available")
             If Status.IsInstalled Then Return FhLanguage.Text("已下载，当前为最新版本", "Downloaded, up to date")
+            If String.Equals(Tool.OnlineStatus, "unavailable", StringComparison.OrdinalIgnoreCase) Then Return FhLanguage.Text("网络错误或项目不存在", "Network error or project unavailable")
             Return FhLanguage.Text("未下载", "Not downloaded")
         End Get
     End Property
 
     Public ReadOnly Property DownloadStateBrush As Brush
         Get
-            Dim key = If(ToolInstallService.IsBlocked(Tool), "ColorBrushRedLight",
+            Dim unavailable = String.Equals(Tool.OnlineStatus, "unavailable", StringComparison.OrdinalIgnoreCase) AndAlso Not Status.IsInstalled
+            Dim key = If(ToolInstallService.IsBlocked(Tool) OrElse unavailable, "ColorBrushRedLight",
                          If(UpdateAvailable, "ColorBrush4",
                             If(Status.IsInstalled, "ColorBrush3", "ColorBrushGray3")))
             Return TryCast(System.Windows.Application.Current.TryFindResource(key), Brush)
@@ -568,6 +919,12 @@ Public Class ToolCardViewModel
     Public ReadOnly Property Description As String
         Get
             Return If(String.IsNullOrWhiteSpace(Tool.Description), Tool.Category, Tool.Description)
+        End Get
+    End Property
+
+    Public ReadOnly Property DownloadDetailLine As String
+        Get
+            Return $"{Description.ReplaceLineEndings(" ")}  ·  {FhLanguage.Text("版本 ", "Version ")}{If(Tool.Version, "-")}"
         End Get
     End Property
 
@@ -685,4 +1042,91 @@ Public Class ToolCardViewModel
                 Return value
         End Select
     End Function
+End Class
+
+Public Class DownloadTaskViewModel
+    Implements INotifyPropertyChanged
+
+    Public ReadOnly Property Tool As ToolManifestEntry
+    Private _percentage As Double
+    Private _progressText As String = "0% · 0 B/s"
+    Private _statusText As String
+    Private _isPaused As Boolean
+
+    Public Sub New(tool As ToolManifestEntry)
+        Me.Tool = tool
+        _statusText = FhLanguage.Text("等待中", "Queued")
+    End Sub
+
+    Public ReadOnly Property Name As String
+        Get
+            Return Tool.Name
+        End Get
+    End Property
+
+    Public Property Percentage As Double
+        Get
+            Return _percentage
+        End Get
+        Private Set(value As Double)
+            _percentage = value
+            OnPropertyChanged()
+        End Set
+    End Property
+
+    Public Property ProgressText As String
+        Get
+            Return _progressText
+        End Get
+        Private Set(value As String)
+            _progressText = value
+            OnPropertyChanged()
+        End Set
+    End Property
+
+    Public Property StatusText As String
+        Get
+            Return _statusText
+        End Get
+        Set(value As String)
+            _statusText = value
+            OnPropertyChanged()
+        End Set
+    End Property
+
+    Public Property IsPaused As Boolean
+        Get
+            Return _isPaused
+        End Get
+        Set(value As Boolean)
+            _isPaused = value
+            OnPropertyChanged()
+            OnPropertyChanged(NameOf(PauseText))
+        End Set
+    End Property
+
+    Public Property IsCancelled As Boolean
+
+    Public ReadOnly Property PauseText As String
+        Get
+            Return FhLanguage.Text(If(IsPaused, "继续", "暂停"), If(IsPaused, "Resume", "Pause"))
+        End Get
+    End Property
+
+    Public Sub UpdateProgress(progress As ToolDownloadProgress)
+        Percentage = Math.Max(0, Math.Min(100, progress.Fraction * 100))
+        ProgressText = $"{Math.Round(Percentage)}% · {FormatSpeed(progress.BytesPerSecond)}"
+    End Sub
+
+    Private Shared Function FormatSpeed(bytesPerSecond As Double) As String
+        If bytesPerSecond >= 1024 * 1024 Then Return $"{bytesPerSecond / 1024 / 1024:0.0} MB/s"
+        If bytesPerSecond >= 1024 Then Return $"{bytesPerSecond / 1024:0.0} KB/s"
+        Return $"{bytesPerSecond:0} B/s"
+    End Function
+
+    Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
+
+    Private Sub OnPropertyChanged(<CallerMemberName> Optional propertyName As String = Nothing)
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(propertyName))
+    End Sub
 End Class

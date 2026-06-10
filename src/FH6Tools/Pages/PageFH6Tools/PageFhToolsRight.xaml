@@ -10,15 +10,19 @@
                 <ItemsControl x:Name="InstalledToolCards">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True">
+                            <local:MyCard Title="{Binding RuntimeDisplayName}" Margin="0,0,0,10">
                                 <StackPanel Margin="18,46,18,18">
-                                    <TextBlock Text="{Binding HealthLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                    <TextBlock Text="{Binding StatusLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,38,0">
-                                    <local:MyIconButton ToolTip="启动" Width="26" Height="26" LogoScale="0.7" Logo="M256 128l576 384-576 384z" Click="IconToolStartAll_Click" />
-                                    <local:MyIconButton ToolTip="停止" Width="26" Height="26" LogoScale="0.65" Logo="M224 224h576v576H224z" Theme="Red" Click="IconToolStop_Click" />
-                                    <local:MyIconButton ToolTip="健康检测" Width="26" Height="26" LogoScale="0.72" Logo="M128 512h160l96-192 160 384 96-192h256" Click="IconToolHealthCheck_Click" />
+                                    <TextBlock Text="{Binding RuntimeSummaryLine}" Foreground="{DynamicResource ColorBrushGray3}" TextTrimming="CharacterEllipsis" Margin="0,0,0,14" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <local:MyButton Text="{Binding StartAllText}" Padding="18,10" ColorType="Highlight" Click="ToolStartAll_Click" />
+                                        <local:MyButton Grid.Column="2" Text="{Binding StopText}" Padding="18,10" ColorType="Red" Click="ToolStop_Click" />
+                                    </Grid>
+                                    <local:MyCheckBox Text="随游戏启动" Checked="{Binding LaunchWithGame}" Change="ToolLaunchWithGame_Change" Margin="0,14,0,0" />
                                 </StackPanel>
                             </local:MyCard>
                         </DataTemplate>
@@ -34,13 +38,31 @@
                             <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True">
                                 <StackPanel Margin="18,46,18,18">
                                     <TextBlock Text="{Binding ConfigLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                    <TextBlock Text="{Binding PortLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                    <Grid Margin="0,0,0,10" IsEnabled="{Binding HasPort}">
+                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="监听地址" Margin="0,0,0,4" />
+                                            <local:MyTextBox Text="{Binding ListenAddress, UpdateSourceTrigger=PropertyChanged}" Height="32" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="服务监听端口" Margin="0,0,0,4" />
+                                            <local:MyTextBox Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Height="32" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{Binding TelemetryPortLine}" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
+                                    <TextBlock Text="热键配置" Margin="0,0,0,4" />
+                                    <local:MyTextBox Text="{Binding HotkeyText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding HasHotkeys}" Height="32" Margin="0,0,0,12" />
+                                    <local:MyCheckBox Text="需要管理员权限启动" Checked="{Binding RunAsAdministrator}" Change="ToolRunAsAdministrator_Change" Margin="0,0,0,10" />
+                                    <local:MyCheckBox Text="仅启动后端" Checked="{Binding BackendOnly}" IsEnabled="{Binding HasBackend}" Change="ToolBackendOnly_Change" Margin="0,0,0,14" />
+                                    <local:MyButton Text="保存运行配置" Margin="0,0,0,8" Padding="10,7" Click="ToolSaveRuntimeConfig_Click" />
                                     <local:MyButton Text="{Binding ConfigText}" Margin="0,0,0,8" Padding="10,7" Click="ToolOpenConfig_Click" />
                                     <local:MyButton Text="{Binding BackupText}" Margin="0,0,0,8" Padding="10,7" Click="ToolBackupConfig_Click" />
                                     <local:MyButton Text="{Binding RestoreText}" Padding="10,7" Click="ToolRestoreConfig_Click" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,38,0">
-                                    <local:MyIconButton ToolTip="打开配置" Width="26" Height="26" LogoScale="0.72" Logo="M448 128h128v128H448zM448 384h128v512H448z" Click="IconToolOpenConfig_Click" />
-                                    <local:MyIconButton ToolTip="打开目录" Width="26" Height="26" LogoScale="0.72" Logo="M96 256h320l96 96h416v448H96z" Click="IconToolOpenFolder_Click" />
+                                    <local:MyIconTextButton Text="安装位置" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M96 256h320l96 96h416v448H96z" Click="HeaderToolOpenFolder_Click" />
+                                    <local:MyIconTextButton Text="卸载" Height="27" LogoScale="0.7" Logo="F1 M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 2,0Z" Click="HeaderToolUninstall_Click" />
                                 </StackPanel>
                             </local:MyCard>
                         </DataTemplate>
@@ -50,27 +72,51 @@
 
             <local:MyCard x:Name="CardDownloads" Title="下载管理" Visibility="Collapsed">
                 <StackPanel Margin="20,42,20,18">
-                    <TextBlock x:Name="LabDownloadDescription" Text="下载与安装任务保存在软件旁的 FH6ToolsData 目录。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
-                    <TextBlock x:Name="LabDownloadStatus" Text="当前没有下载任务。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,14" />
-                    <local:MyButton x:Name="BtnReloadManifest" Text="重新加载工具清单" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnReloadManifest2" Text="刷新工具状态" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnOpenDownloads" Text="打开下载目录" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnCancelDownload" Text="取消当前任务" Padding="18,8" ColorType="Red" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnCancelDownload2" Text="取消全部任务" Padding="18,8" ColorType="Red" />
+                    <TextBlock x:Name="LabDownloadDescription" Text="管理工具更新、安装位置与本地导入。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition />
+                            <ColumnDefinition Width="8" /><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <local:MyButton x:Name="BtnReloadManifest" Text="检查更新" Padding="10,8" />
+                        <local:MyButton x:Name="BtnChangeInstallRoot" Grid.Column="2" Text="更改安装位置" Padding="10,8" />
+                        <local:MyButton x:Name="BtnImportZip" Grid.Column="4" Text="导入 ZIP" Padding="10,8" />
+                        <local:MyButton x:Name="BtnImportFolder" Grid.Column="6" Text="添加文件夹" Padding="10,8" />
+                    </Grid>
+                    <TextBlock x:Name="LabDownloadStatus" Text="当前没有下载任务。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
+                    <ItemsControl x:Name="DownloadTasks">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,5,0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" /><ColumnDefinition /><ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="8" /><ColumnDefinition Width="58" /><ColumnDefinition Width="8" /><ColumnDefinition Width="58" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource ColorBrushGray3}" FontSize="12" />
+                                    </StackPanel>
+                                    <ProgressBar Grid.Column="1" Height="7" Margin="10,0" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="{Binding Percentage}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ProgressText}" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                    <local:MyButton Grid.Column="4" Text="{Binding PauseText}" Padding="8,5" Click="DownloadTaskPause_Click" />
+                                    <local:MyButton Grid.Column="6" Text="取消" Padding="8,5" ColorType="Red" Click="DownloadTaskCancel_Click" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </local:MyCard>
             <ItemsControl x:Name="DownloadToolCards" Visibility="Collapsed" Margin="0,12,0,0">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True">
+                        <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10">
                             <StackPanel Margin="18,46,18,18">
-                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                                <TextBlock Text="{Binding DownloadStateText}" Foreground="{Binding DownloadStateBrush}" FontWeight="SemiBold" Margin="0,0,0,12" />
-                                <local:MyButton Text="{Binding InstallText}" Padding="10,7" Click="ToolInstall_Click" />
+                                <TextBlock Text="{Binding DownloadDetailLine}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource ColorBrushGray3}" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,38,0">
+                                <TextBlock Text="{Binding DownloadStateText}" Foreground="{Binding DownloadStateBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <local:MyIconButton ToolTip="下载或更新" Width="26" Height="26" LogoScale="0.72" Logo="M448 96h128v480l160-160 96 96-320 320-320-320 96-96 160 160z" Click="IconToolInstall_Click" />
-                                <local:MyIconButton ToolTip="检查更新" Width="26" Height="26" LogoScale="0.72" Logo="M192 512a320 320 0 1 0 96-228M192 128v256h256" Click="ToolCheckUpdate_Click" />
+                                <local:MyIconButton ToolTip="访问项目" Width="26" Height="26" LogoScale="0.72" Logo="M512 64a448 448 0 0 0-142 873c22 4 30-10 30-22v-78c-124 27-150-53-150-53-20-52-50-66-50-66-41-28 3-27 3-27 45 3 69 46 69 46 40 68 105 48 131 37 4-29 16-48 29-59-99-11-203-49-203-221 0-49 17-89 46-120-5-11-20-57 4-118 0 0 38-12 123 46a426 426 0 0 1 224 0c85-58 123-46 123-46 24 61 9 107 4 118 29 31 46 71 46 120 0 172-104 210-203 221 16 14 30 41 30 82v122c0 12 8 26 30 22A448 448 0 0 0 512 64z" Click="ToolOpenProject_Click" />
                             </StackPanel>
                         </local:MyCard>
                     </DataTemplate>
@@ -81,21 +127,39 @@
                 <StackPanel Margin="20,42,20,18">
                     <TextBlock x:Name="LabLanguageTitle" Text="界面语言" FontWeight="SemiBold" Margin="0,0,0,6" />
                     <TextBlock x:Name="LabLanguageHint" Text="默认使用简体中文，切换后立即生效。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
-                    <local:MyComboBox x:Name="ComboLanguage" Height="34" Margin="0,0,0,18">
-                        <local:MyComboBoxItem Content="简体中文" Tag="zh-CN" />
-                        <local:MyComboBoxItem Content="English" Tag="en-US" />
-                    </local:MyComboBox>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                        <local:MyRadioBox x:Name="RadioLanguageZh" Text="简体中文" Tag="zh-CN" Checked="True" Margin="0,0,18,0" />
+                        <local:MyRadioBox x:Name="RadioLanguageEn" Text="English" Tag="en-US" />
+                    </StackPanel>
+                    <TextBlock Text="开机自启动" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                        <local:MyRadioBox x:Name="RadioStartupOn" Text="启用" Tag="on" Margin="0,0,18,0" />
+                        <local:MyRadioBox x:Name="RadioStartupOff" Text="关闭" Tag="off" Checked="True" />
+                    </StackPanel>
                     <TextBlock x:Name="LabConfigStatus" Text="可打开、备份或恢复工具配置。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,14" />
-                    <local:MyButton x:Name="BtnOpenConfigRoot" Text="打开配置目录" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnOpenDataRoot" Text="打开数据目录" Padding="18,8" />
+                    <StackPanel Orientation="Horizontal">
+                        <local:MyButton x:Name="BtnOpenAppRoot" Text="打开软件目录" Padding="14,7" Margin="0,0,8,0" />
+                        <local:MyButton x:Name="BtnOpenConfigRoot" Text="打开配置目录" Padding="14,7" Margin="0,0,8,0" />
+                        <local:MyButton x:Name="BtnOpenDataRoot" Text="打开数据目录" Padding="14,7" />
+                    </StackPanel>
                 </StackPanel>
             </local:MyCard>
 
             <local:MyCard x:Name="CardGameData" Title="游戏与数据" Visibility="Collapsed">
                 <StackPanel Margin="20,42,20,18">
-                    <local:MyButton x:Name="BtnBindGame" Text="绑定游戏路径" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnRefreshGame" Text="重新检测游戏" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnOpenGameFolder" Text="打开游戏目录" Padding="18,8" Margin="0,0,0,8" />
+                    <TextBlock x:Name="LabGameDetectionStatus" Text="正在检测游戏..." Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <local:MyButton x:Name="BtnBindGame" Text="指定游戏路径" Padding="12,8" />
+                        <local:MyButton x:Name="BtnRefreshGame" Grid.Column="2" Text="重新检测游戏" Padding="12,8" />
+                        <local:MyButton x:Name="BtnOpenGameFolder" Grid.Column="4" Text="打开游戏目录" Padding="12,8" />
+                    </Grid>
                     <local:MyButton x:Name="BtnBackupGameData" Text="备份游戏数据" Padding="18,8" Margin="0,0,0,8" />
                     <local:MyButton x:Name="BtnOpenGameBackups" Text="打开游戏备份" Padding="18,8" />
                 </StackPanel>
@@ -105,6 +169,10 @@
                 <StackPanel Margin="20,42,20,18">
                     <TextBlock x:Name="LabAboutDescription" Text="FH6Tools 是用于启动地平线 6 和管理社区工具的本地 Windows 工具中心。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
                     <local:MyListItem x:Name="ItemAboutManifest" Title="工具清单" Info="工具列表会在软件启动时动态更新。" IsHitTestVisible="False" Height="54" />
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <local:MyButton x:Name="BtnOpenProject" Text="访问项目" Padding="14,7" Margin="0,0,8,0" />
+                        <local:MyButton x:Name="BtnCheckAppUpdate" Text="检查更新" Padding="14,7" />
+                    </StackPanel>
                 </StackPanel>
             </local:MyCard>
 

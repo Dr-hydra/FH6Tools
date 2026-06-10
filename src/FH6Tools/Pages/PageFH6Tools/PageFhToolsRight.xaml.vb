@@ -152,6 +152,7 @@ Public Class PageFhToolsRight
         ItemAboutUpdateProtection.Info = FhLanguage.Text("软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。",
                                                           "App updates replace only program files and preserve configuration, save backups, and installed tools.")
         SetUiCreditText()
+        SetProjectAddressText()
         If String.IsNullOrWhiteSpace(LabAppUpdateStatus.Text) OrElse
            LabAppUpdateStatus.Text = "尚未检查软件更新。" OrElse
            LabAppUpdateStatus.Text = "App updates have not been checked yet." Then
@@ -494,10 +495,6 @@ Public Class PageFhToolsRight
         End Try
     End Sub
 
-    Private Sub BtnOpenProject_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenProject.Click
-        Process.Start(New ProcessStartInfo With {.FileName = "https://github.com/Dr-hydra/FH6Tools", .UseShellExecute = True})
-    End Sub
-
     Private Async Sub BtnCheckAppUpdate_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnCheckAppUpdate.Click
         Await CheckAppUpdateAsync(True)
     End Sub
@@ -560,6 +557,19 @@ Public Class PageFhToolsRight
     End Sub
 
     Private Sub UiCredit_RequestNavigate(sender As Object, e As Navigation.RequestNavigateEventArgs)
+        Process.Start(New ProcessStartInfo With {.FileName = e.Uri.AbsoluteUri, .UseShellExecute = True})
+        e.Handled = True
+    End Sub
+
+    Private Sub SetProjectAddressText()
+        LabProjectAddress.Inlines.Clear()
+        LabProjectAddress.Inlines.Add(New Run(FhLanguage.Text("项目地址：", "Project: ")))
+        Dim link As New Hyperlink(New Run("Dr-hydra/FH6Tools")) With {.NavigateUri = New Uri("https://github.com/Dr-hydra/FH6Tools")}
+        AddHandler link.RequestNavigate, AddressOf ProjectAddress_RequestNavigate
+        LabProjectAddress.Inlines.Add(link)
+    End Sub
+
+    Private Sub ProjectAddress_RequestNavigate(sender As Object, e As Navigation.RequestNavigateEventArgs)
         Process.Start(New ProcessStartInfo With {.FileName = e.Uri.AbsoluteUri, .UseShellExecute = True})
         e.Handled = True
     End Sub

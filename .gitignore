@@ -1,0 +1,26 @@
+# Build output
+**/bin/
+**/obj/
+artifacts/
+
+# Runtime and application data
+**/FH6ToolsData/
+**/dotnet/
+
+# IDE and user files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+~$*
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store

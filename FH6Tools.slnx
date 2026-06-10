@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FH6Tools/FH6Tools.vbproj" />
+  </Folder>
+  <Folder Name="/src/QING.Core/" />
+  <Folder Name="/src/QING.Core/Shared/">
+    <Project Path="src/QING.Core/Shared/QING.Core.csproj" />
+  </Folder>
+  <Folder Name="/src/QING.Core/Wpf/">
+    <Project Path="src/QING.Core/Wpf/QING.Core.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FH6Tools.SmokeTests/FH6Tools.SmokeTests.csproj" />
+  </Folder>
+</Solution>

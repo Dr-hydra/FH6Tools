@@ -18,10 +18,7 @@ Public Class PageFhToolsRight
     Private CurrentTools As List(Of ToolManifestEntry) = New List(Of ToolManifestEntry)
     Private CurrentState As ToolStateStore = New ToolStateStore
     Private CurrentGame As GameInstallState = New GameInstallState
-    Private ActiveDownloadCancellation As Threading.CancellationTokenSource
     Private ReadOnly PendingInstallTools As New Queue(Of DownloadTaskViewModel)
-    Private ActiveDownloadTask As DownloadTaskViewModel
-    Private PauseRequested As Boolean
     Private IsDownloadQueueRunning As Boolean
     Private CurrentPage As FhShellPage = FhShellPage.Home
 
@@ -97,8 +94,6 @@ Public Class PageFhToolsRight
         BtnChangeInstallRoot.Text = FhLanguage.Text("更改安装位置", "Change Install Location")
         BtnImportZip.Text = FhLanguage.Text("导入 ZIP", "Import ZIP")
         BtnImportFolder.Text = FhLanguage.Text("添加文件夹", "Add Folder")
-        BtnPauseCurrentDownload.Text = FhLanguage.Text("暂停当前", "Pause Current")
-        BtnCancelCurrentDownload.Text = FhLanguage.Text("取消当前", "Cancel Current")
         CardConfig.Title = FhLanguage.Text("常规设置", "General Settings")
         CardGameData.Title = FhLanguage.Text("游戏与数据", "Game and Data")
         LabLanguageTitle.Text = FhLanguage.Text("界面语言", "Interface Language")
@@ -612,93 +607,30 @@ Public Class PageFhToolsRight
         Process.Start(New ProcessStartInfo With {.FileName = tool.Homepage, .UseShellExecute = True})
     End Sub
 
-    Private Async Sub DownloadTaskPause_Click(sender As Object, e As MouseButtonEventArgs)
-        Dim task = TryCast(TryCast(sender, FrameworkElement)?.DataContext, DownloadTaskViewModel)
-        If task Is Nothing Then Return
-        If task.IsPaused Then
-            task.IsPaused = False
-            task.StatusText = FhLanguage.Text("等待继续", "Waiting to resume")
-            If Not PendingInstallTools.Contains(task) Then PendingInstallTools.Enqueue(task)
-            Await ProcessInstallQueueAsync()
-        ElseIf task Is ActiveDownloadTask AndAlso ActiveDownloadCancellation IsNot Nothing Then
-            PauseRequested = True
-            task.IsPaused = True
-            task.StatusText = FhLanguage.Text("正在暂停", "Pausing")
-            ActiveDownloadCancellation.Cancel()
-        Else
-            task.IsPaused = True
-            task.StatusText = FhLanguage.Text("已暂停", "Paused")
-        End If
-    End Sub
-
-    Private Sub DownloadTaskCancel_Click(sender As Object, e As MouseButtonEventArgs)
-        Dim task = TryCast(TryCast(sender, FrameworkElement)?.DataContext, DownloadTaskViewModel)
-        If task Is Nothing Then Return
-        task.IsCancelled = True
-        task.StatusText = FhLanguage.Text("已取消", "Cancelled")
-        If task Is ActiveDownloadTask AndAlso ActiveDownloadCancellation IsNot Nothing Then ActiveDownloadCancellation.Cancel()
-    End Sub
-
-    Private Sub BtnPauseCurrentDownload_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnPauseCurrentDownload.Click
-        If ActiveDownloadTask Is Nothing OrElse ActiveDownloadCancellation Is Nothing Then
-            Hint(FhLanguage.Text("当前没有正在下载的任务。", "There is no active download task."), HintType.Blue)
-            Return
-        End If
-        PauseRequested = True
-        ActiveDownloadTask.IsPaused = True
-        ActiveDownloadTask.StatusText = FhLanguage.Text("正在暂停", "Pausing")
-        ActiveDownloadCancellation.Cancel()
-    End Sub
-
-    Private Sub BtnCancelCurrentDownload_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnCancelCurrentDownload.Click
-        If ActiveDownloadTask Is Nothing OrElse ActiveDownloadCancellation Is Nothing Then
-            Hint(FhLanguage.Text("当前没有正在下载的任务。", "There is no active download task."), HintType.Blue)
-            Return
-        End If
-        ActiveDownloadTask.IsCancelled = True
-        ActiveDownloadTask.StatusText = FhLanguage.Text("正在取消", "Cancelling")
-        ActiveDownloadCancellation.Cancel()
-    End Sub
-
     Private Async Function ProcessInstallQueueAsync() As Task
         If IsDownloadQueueRunning Then Return
         IsDownloadQueueRunning = True
         Try
             While PendingInstallTools.Count > 0
                 Dim downloadTask = PendingInstallTools.Dequeue()
-                If downloadTask.IsCancelled OrElse downloadTask.IsPaused Then Continue While
                 Dim tool = downloadTask.Tool
-                ActiveDownloadTask = downloadTask
                 downloadTask.StatusText = FhLanguage.Text("正在下载", "Downloading")
-                ActiveDownloadCancellation = New Threading.CancellationTokenSource()
-                PauseRequested = False
                 Try
                     Dim progress As New Progress(Of ToolDownloadProgress)(Sub(value)
                                                                             downloadTask.UpdateProgress(value)
                                                                             LabDownloadStatus.Text = $"Installing {tool.Name}: {Math.Round(value.Fraction * 100)}% | Pending: {PendingInstallTools.Count}"
                                                                         End Sub)
-                    Dim installPath = Await InstallService.DownloadAndInstallAsync(tool, progress, ActiveDownloadCancellation.Token)
+                    Dim installPath = Await InstallService.DownloadAndInstallAsync(tool, progress, Threading.CancellationToken.None)
                     downloadTask.StatusText = FhLanguage.Text("已完成", "Completed")
                     LabDownloadStatus.Text = $"Installed {tool.Name} to {installPath}"
                     Await RefreshToolsAsync()
-                Catch ex As OperationCanceledException
-                    If PauseRequested Then
-                        downloadTask.StatusText = FhLanguage.Text("已暂停", "Paused")
-                    Else
-                        downloadTask.IsCancelled = True
-                        downloadTask.StatusText = FhLanguage.Text("已取消", "Cancelled")
-                    End If
                 Catch ex As Exception
                     downloadTask.StatusText = FhLanguage.Text("失败：", "Failed: ") & ex.Message
                     LabDownloadStatus.Text = $"Install failed for {tool.Name}: {ex.Message}"
                     Hint(ex.Message, HintType.Red)
-                Finally
-                    ActiveDownloadCancellation.Dispose()
-                    ActiveDownloadCancellation = Nothing
-                    ActiveDownloadTask = Nothing
                 End Try
             End While
-            If ActiveDownloadCancellation Is Nothing Then LabDownloadStatus.Text &= If(PendingInstallTools.Count = 0, " Queue idle.", "")
+            LabDownloadStatus.Text &= If(PendingInstallTools.Count = 0, " Queue idle.", "")
         Finally
             IsDownloadQueueRunning = False
         End Try
@@ -1172,7 +1104,6 @@ Public Class DownloadTaskViewModel
     Private _percentage As Double
     Private _progressText As String = "0% · 0 B/s"
     Private _statusText As String
-    Private _isPaused As Boolean
 
     Public Sub New(tool As ToolManifestEntry)
         Me.Tool = tool
@@ -1213,25 +1144,6 @@ Public Class DownloadTaskViewModel
             _statusText = value
             OnPropertyChanged()
         End Set
-    End Property
-
-    Public Property IsPaused As Boolean
-        Get
-            Return _isPaused
-        End Get
-        Set(value As Boolean)
-            _isPaused = value
-            OnPropertyChanged()
-            OnPropertyChanged(NameOf(PauseText))
-        End Set
-    End Property
-
-    Public Property IsCancelled As Boolean
-
-    Public ReadOnly Property PauseText As String
-        Get
-            Return FhLanguage.Text(If(IsPaused, "继续", "暂停"), If(IsPaused, "Resume", "Pause"))
-        End Get
     End Property
 
     Public Sub UpdateProgress(progress As ToolDownloadProgress)

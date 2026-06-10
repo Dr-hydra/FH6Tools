@@ -18,7 +18,7 @@
                                     <TextBlock Text="{Binding RuntimeStateText}" VerticalAlignment="Center" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,10,0" />
                                     <local:MyCheckBox Text="随游戏启动" Checked="{Binding LaunchWithGame}" Change="ToolLaunchWithGame_Change" Margin="0,0,10,0" />
                                     <local:MyButton Text="{Binding BackendText}" Visibility="{Binding BackendVisibility}" Padding="9,5" Margin="0,0,6,0" Click="ToolStartBackend_Click" />
-                                    <local:MyButton Text="{Binding FrontendText}" Visibility="{Binding BackendVisibility}" Padding="9,5" Margin="0,0,6,0" Click="ToolStartFrontend_Click" />
+                                    <local:MyButton Text="{Binding FrontendText}" Visibility="{Binding BackendVisibility}" Padding="9,5" Margin="0,0,6,0" Click="ToolOpenFrontend_Click" />
                                     <local:MyButton Text="{Binding StartText}" Padding="9,5" ColorType="Highlight" Margin="0,0,6,0" Click="ToolStartAll_Click" />
                                     <local:MyButton Text="{Binding StopText}" Padding="9,5" ColorType="Red" Click="ToolStop_Click" />
                                 </StackPanel>
@@ -88,19 +88,13 @@
                         <local:MyButton x:Name="BtnImportZip" Grid.Column="4" Text="导入 ZIP" Padding="10,8" />
                         <local:MyButton x:Name="BtnImportFolder" Grid.Column="6" Text="添加文件夹" Padding="10,8" />
                     </Grid>
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition Width="88" /><ColumnDefinition Width="8" /><ColumnDefinition Width="88" /></Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabDownloadStatus" Text="当前没有下载任务。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" VerticalAlignment="Center" />
-                        <local:MyButton x:Name="BtnPauseCurrentDownload" Grid.Column="2" Text="暂停当前" Padding="8,5" />
-                        <local:MyButton x:Name="BtnCancelCurrentDownload" Grid.Column="4" Text="取消当前" Padding="8,5" ColorType="Red" />
-                    </Grid>
+                    <TextBlock x:Name="LabDownloadStatus" Text="当前没有下载任务。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
                     <ItemsControl x:Name="DownloadTasks">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,5,0,5">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="150" /><ColumnDefinition /><ColumnDefinition Width="90" />
-                                        <ColumnDefinition Width="8" /><ColumnDefinition Width="58" /><ColumnDefinition Width="8" /><ColumnDefinition Width="58" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
@@ -108,8 +102,6 @@
                                     </StackPanel>
                                     <ProgressBar Grid.Column="1" Height="7" Margin="10,0" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="{Binding Percentage, Mode=OneWay}" />
                                     <TextBlock Grid.Column="2" Text="{Binding ProgressText}" VerticalAlignment="Center" HorizontalAlignment="Right" />
-                                    <local:MyButton Grid.Column="4" Text="{Binding PauseText}" Padding="8,5" Click="DownloadTaskPause_Click" />
-                                    <local:MyButton Grid.Column="6" Text="取消" Padding="8,5" ColorType="Red" Click="DownloadTaskCancel_Click" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

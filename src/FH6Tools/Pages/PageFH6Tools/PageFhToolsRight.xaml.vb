@@ -1152,8 +1152,9 @@ Public Class DownloadTaskViewModel
 
     Public ReadOnly Property Tool As ToolManifestEntry
     Private _percentage As Double
-    Private _progressText As String = "0% · 0 B/s"
+    Private _progressText As String = "0% · 0 B / -- · 0 B/s"
     Private _statusText As String
+    Private _lastSpeed As Double
 
     Public Sub New(tool As ToolManifestEntry)
         Me.Tool = tool
@@ -1198,13 +1199,20 @@ Public Class DownloadTaskViewModel
 
     Public Sub UpdateProgress(progress As ToolDownloadProgress)
         Percentage = Math.Max(0, Math.Min(100, progress.Fraction * 100))
-        ProgressText = $"{Math.Round(Percentage)}% · {FormatSpeed(progress.BytesPerSecond)}"
+        If progress.BytesPerSecond > 0 Then _lastSpeed = progress.BytesPerSecond
+        Dim totalText = If(progress.TotalBytes > 0, FormatSize(progress.TotalBytes), "--")
+        ProgressText = $"{Math.Round(Percentage)}% · {FormatSize(progress.BytesReceived)} / {totalText} · {FormatSpeed(_lastSpeed)}"
     End Sub
 
     Private Shared Function FormatSpeed(bytesPerSecond As Double) As String
-        If bytesPerSecond >= 1024 * 1024 Then Return $"{bytesPerSecond / 1024 / 1024:0.0} MB/s"
-        If bytesPerSecond >= 1024 Then Return $"{bytesPerSecond / 1024:0.0} KB/s"
-        Return $"{bytesPerSecond:0} B/s"
+        Return FormatSize(bytesPerSecond) & "/s"
+    End Function
+
+    Private Shared Function FormatSize(bytes As Double) As String
+        If bytes >= 1024 * 1024 * 1024 Then Return $"{bytes / 1024 / 1024 / 1024:0.00} GB"
+        If bytes >= 1024 * 1024 Then Return $"{bytes / 1024 / 1024:0.0} MB"
+        If bytes >= 1024 Then Return $"{bytes / 1024:0.0} KB"
+        Return $"{bytes:0} B"
     End Function
 
     Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged

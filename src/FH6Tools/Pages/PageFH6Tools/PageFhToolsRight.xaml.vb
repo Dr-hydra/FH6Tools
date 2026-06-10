@@ -10,8 +10,6 @@ Public Class PageFhToolsRight
     Private ReadOnly RuntimeService As New ToolRuntimeService
     Private ReadOnly InstallService As New ToolInstallService
     Private ReadOnly GameService As New GameLaunchService
-    Private ReadOnly GameBackupService As New GameBackupService
-    Private ReadOnly ConfigService As New ConfigSnapshotService
     Private ReadOnly ToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly InstalledToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly RuntimeRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
@@ -127,9 +125,6 @@ Public Class PageFhToolsRight
         BtnBindGame.Text = FhLanguage.Text("绑定游戏路径", "Bind Game Path")
         BtnRefreshGame.Text = FhLanguage.Text("重新检测游戏", "Detect Game Again")
         BtnOpenGameFolder.Text = FhLanguage.Text("打开游戏目录", "Open Game Folder")
-        BtnBackupGameData.Text = FhLanguage.Text("备份游戏数据", "Back Up Game Data")
-        BtnOpenGameBackups.Text = FhLanguage.Text("打开游戏备份", "Open Game Backups")
-        BtnOpenConfigRoot.Text = FhLanguage.Text("打开配置目录", "Open Config Folder")
         BtnOpenDataRoot.Text = FhLanguage.Text("打开数据目录", "Open Data Folder")
         CardAbout.Title = FhLanguage.Text("关于 FH6Tools", "About FH6Tools")
         CardRuntimeInfo.Title = FhLanguage.Text("运行时与安全", "Runtime and Safety")
@@ -280,19 +275,22 @@ Public Class PageFhToolsRight
             GroupBy(Function(item) item.ToolId, StringComparer.OrdinalIgnoreCase).Select(Function(candidateGroup) candidateGroup.First()).ToList()
         Dim servicePorts = relevantEntries.Select(Function(item)
                                                       Dim tool = CurrentTools.FirstOrDefault(Function(candidate) candidate.Id.Equals(item.ToolId, StringComparison.OrdinalIgnoreCase))
-                                                      Return If(item.Port > 0, item.Port, If(tool Is Nothing, 0, RuntimeService.GetConfiguredPort(tool)))
+                                                      Return If(tool Is Nothing, 0, RuntimeService.GetConfiguredPort(tool))
                                                   End Function)
         For Each portGroup In servicePorts.Where(Function(port) port > 0).GroupBy(Function(port) port).Where(Function(candidate) candidate.Count > 1)
             conflicts.Add(FhLanguage.Text($"服务端口 {portGroup.Key} 被多个工具使用", $"Service port {portGroup.Key} is used by multiple tools"))
         Next
         Dim telemetryPorts = relevantEntries.Select(Function(item)
                                                         Dim tool = CurrentTools.FirstOrDefault(Function(candidate) candidate.Id.Equals(item.ToolId, StringComparison.OrdinalIgnoreCase))
-                                                        Return If(item.TelemetryPort > 0, item.TelemetryPort, If(tool Is Nothing, 0, tool.TelemetryPort))
+                                                        Return If(tool Is Nothing, 0, tool.TelemetryPort)
                                                     End Function)
         For Each telemetryGroup In telemetryPorts.Where(Function(port) port > 0).GroupBy(Function(port) port).Where(Function(candidate) candidate.Count > 1)
             conflicts.Add(FhLanguage.Text($"游戏遥测端口 {telemetryGroup.Key} 被多个工具使用", $"Game telemetry port {telemetryGroup.Key} is used by multiple tools"))
         Next
-        For Each hotkeyGroup In relevantEntries.SelectMany(Function(item) If(item.Hotkeys, New Dictionary(Of String, String)).Values).
+        For Each hotkeyGroup In relevantEntries.
+            Select(Function(item) CurrentTools.FirstOrDefault(Function(candidate) candidate.Id.Equals(item.ToolId, StringComparison.OrdinalIgnoreCase))).
+            Where(Function(tool) tool IsNot Nothing).
+            SelectMany(Function(tool) If(tool.Hotkeys, New List(Of ToolHotkeyDefinition)).Select(Function(hotkey) hotkey.DefaultValue)).
             Where(Function(value) Not String.IsNullOrWhiteSpace(value)).
             GroupBy(Function(value) value, StringComparer.OrdinalIgnoreCase).
             Where(Function(candidate) candidate.Count > 1)
@@ -310,16 +308,8 @@ Public Class PageFhToolsRight
         Dim tool = CurrentTools.FirstOrDefault(Function(item) item.Id.Equals(toolId, StringComparison.OrdinalIgnoreCase))
         state = New ToolInstallState With {
             .ToolId = toolId,
-            .ListenAddress = "127.0.0.1",
-            .Port = If(tool Is Nothing, 0, RuntimeService.GetConfiguredPort(tool)),
-            .TelemetryPort = If(tool Is Nothing, 0, tool.TelemetryPort),
             .RunAsAdministrator = tool?.RequiresAdmin
         }
-        If tool?.Hotkeys IsNot Nothing Then
-            state.Hotkeys = tool.Hotkeys.
-                Where(Function(item) Not String.IsNullOrWhiteSpace(item.Name) AndAlso Not String.IsNullOrWhiteSpace(item.DefaultValue)).
-                ToDictionary(Function(item) item.Name, Function(item) item.DefaultValue, StringComparer.OrdinalIgnoreCase)
-        End If
         CurrentState.Tools.Add(state)
         Return state
     End Function
@@ -328,8 +318,6 @@ Public Class PageFhToolsRight
         For Each tool In CurrentTools
             Dim state = GetToolState(tool.Id)
             RuntimeService.SetRunAsAdministrator(tool, state.RunAsAdministrator)
-            RuntimeService.SetBackendOnly(tool, state.BackendOnly)
-            If state.Port > 0 Then RuntimeService.SetPortOverride(tool, state.Port)
         Next
     End Sub
 
@@ -354,36 +342,6 @@ Public Class PageFhToolsRight
         Await ManifestService.SaveStateAsync(CurrentState)
     End Sub
 
-    Private Async Sub ToolBackendOnly_Change(sender As Object, user As Boolean)
-        If Not user Then Return
-        Dim checkbox = TryCast(sender, MyCheckBox)
-        Dim viewModel = TryCast(checkbox?.DataContext, ToolCardViewModel)
-        If viewModel Is Nothing Then Return
-        CurrentState = Await ManifestService.LoadStateAsync()
-        GetToolState(viewModel.Tool.Id).BackendOnly = checkbox.Checked
-        RuntimeService.SetBackendOnly(viewModel.Tool, checkbox.Checked)
-        Await ManifestService.SaveStateAsync(CurrentState)
-    End Sub
-
-    Private Async Sub ToolSaveRuntimeConfig_Click(sender As Object, e As MouseButtonEventArgs)
-        Dim viewModel = TryCast(TryCast(sender, FrameworkElement)?.DataContext, ToolCardViewModel)
-        If viewModel Is Nothing Then Return
-        Dim port As Integer
-        If viewModel.HasPort AndAlso (Not Integer.TryParse(viewModel.PortText, port) OrElse port < 1 OrElse port > 65535) Then
-            Hint(FhLanguage.Text("服务监听端口必须在 1 到 65535 之间。", "Service port must be between 1 and 65535."), HintType.Red)
-            Return
-        End If
-        CurrentState = Await ManifestService.LoadStateAsync()
-        Dim state = GetToolState(viewModel.Tool.Id)
-        state.ListenAddress = viewModel.ListenAddress.Trim()
-        state.Port = If(viewModel.HasPort, port, 0)
-        state.TelemetryPort = viewModel.Tool.TelemetryPort
-        state.Hotkeys = viewModel.ParseHotkeys()
-        If state.Port > 0 Then RuntimeService.SetPortOverride(viewModel.Tool, state.Port)
-        Await ManifestService.SaveStateAsync(CurrentState)
-        Hint(FhLanguage.Text("运行配置已保存。", "Runtime configuration saved."), HintType.Green)
-    End Sub
-
     Private Async Sub BtnBindGame_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnBindGame.Click
         Dim dialog As New OpenFileDialog With {.Filter = "Executable (*.exe)|*.exe|All files (*.*)|*.*", .Title = "Bind FH6 executable"}
         If dialog.ShowDialog() Then
@@ -400,27 +358,6 @@ Public Class PageFhToolsRight
         Try
             Dim path As String = If(Directory.Exists(CurrentGame.InstallPath), CurrentGame.InstallPath, IO.Path.GetDirectoryName(CurrentGame.InstallPath))
             If Not String.IsNullOrWhiteSpace(path) AndAlso Directory.Exists(path) Then Process.Start(New ProcessStartInfo With {.FileName = path, .UseShellExecute = True})
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
-    End Sub
-
-    Private Sub BtnBackupGameData_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnBackupGameData.Click
-        Try
-            Dim dataRoot = GameBackupService.ChooseDataRoot(Window.GetWindow(Me))
-            If String.IsNullOrWhiteSpace(dataRoot) Then Return
-            Dim backupPath = GameBackupService.BackupFolder(dataRoot)
-            LabConfigStatus.Text = FhLanguage.Text("游戏数据备份已创建：", "Game data backup created: ") & backupPath
-            Hint("FH6 data backup created.", HintType.Green)
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
-    End Sub
-
-    Private Sub BtnOpenGameBackups_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenGameBackups.Click
-        Try
-            Directory.CreateDirectory(GameBackupService.BackupRoot)
-            Process.Start(New ProcessStartInfo With {.FileName = GameBackupService.BackupRoot, .UseShellExecute = True})
         Catch ex As Exception
             Hint(ex.Message, HintType.Red)
         End Try
@@ -461,11 +398,6 @@ Public Class PageFhToolsRight
         Catch ex As Exception
             Hint(ex.Message, HintType.Red)
         End Try
-    End Sub
-
-    Private Sub BtnOpenConfigRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenConfigRoot.Click
-        FhPaths.Ensure()
-        Process.Start(New ProcessStartInfo With {.FileName = FhPaths.ConfigRoot, .UseShellExecute = True})
     End Sub
 
     Private Sub BtnOpenAppRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnOpenAppRoot.Click
@@ -736,118 +668,6 @@ Public Class PageFhToolsRight
         End Try
     End Sub
 
-    Private Sub ToolOpenConfig_Click(sender As Object, e As MouseButtonEventArgs)
-        OpenToolConfig(sender)
-    End Sub
-
-    Private Sub IconToolOpenConfig_Click(sender As Object, e As EventArgs)
-        OpenToolConfig(sender)
-    End Sub
-
-    Private Sub OpenToolConfig(sender As Object)
-        Dim tool = GetToolFromSender(sender)
-        If tool Is Nothing Then Return
-        Try
-            Dim config = SelectConfig(tool)
-            If config Is Nothing Then Return
-            Dim configPath = ConfigService.ResolveConfigPath(tool, config)
-            If ConfigSnapshotService.IsDirectoryConfig(config, configPath) Then
-                If Not Directory.Exists(configPath) Then
-                    Hint(FhLanguage.Text("配置目录不存在。", "Config directory does not exist."), HintType.Blue)
-                    Return
-                End If
-                Process.Start(New ProcessStartInfo With {.FileName = configPath, .UseShellExecute = True})
-                LabConfigStatus.Text = "Opened config directory: " & configPath
-                Return
-            End If
-            If Not File.Exists(configPath) Then
-                Hint(FhLanguage.Text("配置文件不存在。", "Config file does not exist."), HintType.Blue)
-                Return
-            End If
-            Process.Start(New ProcessStartInfo With {.FileName = configPath, .UseShellExecute = True})
-            LabConfigStatus.Text = "Opened config: " & configPath
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
-    End Sub
-
-    Private Sub ToolBackupConfig_Click(sender As Object, e As MouseButtonEventArgs)
-        Dim tool = GetToolFromSender(sender)
-        If tool Is Nothing Then Return
-        Try
-            Dim config = SelectConfig(tool)
-            If config Is Nothing Then Return
-            Dim snapshot = ConfigService.Backup(tool, config)
-            LabConfigStatus.Text = "Created snapshot: " & snapshot
-            Hint("Config snapshot created.", HintType.Green)
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
-    End Sub
-
-    Private Sub ToolRestoreConfig_Click(sender As Object, e As MouseButtonEventArgs)
-        Dim tool = GetToolFromSender(sender)
-        If tool Is Nothing Then Return
-        Try
-            Dim config = SelectConfig(tool)
-            If config Is Nothing Then Return
-            Dim snapshots = ConfigService.ListSnapshots(tool)
-            If snapshots.Count = 0 Then
-                Hint("No snapshots found for this tool.", HintType.Blue)
-                Return
-            End If
-            Dim snapshot = snapshots(0)
-            If snapshots.Count > 1 Then
-                Dim selected = MyMsgBoxSelect(snapshots.Select(Function(path) IO.Path.GetFileName(path)), "Restore snapshot")
-                If selected >= 0 AndAlso selected < snapshots.Count Then snapshot = snapshots(selected)
-            End If
-            Dim target = ConfigService.ResolveConfigPath(tool, config)
-            ConfigService.Restore(snapshot, target)
-            LabConfigStatus.Text = "Restored " & IO.Path.GetFileName(snapshot) & " to " & target
-            Hint("Config restored.", HintType.Green)
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
-    End Sub
-
-    Private Sub ToolOpenLogs_Click(sender As Object, e As MouseButtonEventArgs)
-        Dim tool = GetToolFromSender(sender)
-        If tool Is Nothing Then Return
-        Try
-            Dim logConfig = If(tool.ConfigFiles, New List(Of ToolConfigFileEntry)).
-                FirstOrDefault(Function(config) config.Name.IndexOf("log", StringComparison.OrdinalIgnoreCase) >= 0)
-            If logConfig IsNot Nothing Then
-                Dim logPath = ConfigService.ResolveConfigPath(tool, logConfig)
-                Directory.CreateDirectory(logPath)
-                Process.Start(New ProcessStartInfo With {.FileName = logPath, .UseShellExecute = True})
-                Return
-            End If
-            Dim toolLogRoot = IO.Path.Combine(FhPaths.AppDataRoot, "logs", tool.Id)
-            Directory.CreateDirectory(toolLogRoot)
-            Process.Start(New ProcessStartInfo With {.FileName = toolLogRoot, .UseShellExecute = True})
-        Catch ex As Exception
-            Hint(ex.Message, HintType.Red)
-        End Try
-    End Sub
-
-    Private Function SelectConfig(tool As ToolManifestEntry) As ToolConfigFileEntry
-        Dim existingConfigs = If(tool.ConfigFiles, New List(Of ToolConfigFileEntry)).
-            Where(Function(config)
-                      Dim path = ConfigService.ResolveConfigPath(tool, config)
-                      Return File.Exists(path) OrElse Directory.Exists(path)
-                  End Function).ToList()
-        If existingConfigs.Count = 0 Then
-            Hint(FhLanguage.Text("未找到该工具的现有配置文件。", "No existing config files were found for this tool."), HintType.Blue)
-            Return Nothing
-        End If
-        If existingConfigs.Count > 1 Then
-            Dim selected = MyMsgBoxSelect(existingConfigs.Select(Function(config) config.Name), FhLanguage.Text("选择配置", "Select config"))
-            If selected < 0 OrElse selected >= existingConfigs.Count Then Return Nothing
-            Return existingConfigs(selected)
-        End If
-        Return existingConfigs(0)
-    End Function
-
 End Class
 
 Public Class ToolCardViewModel
@@ -856,11 +676,9 @@ Public Class ToolCardViewModel
     Public ReadOnly Property UpdateAvailable As Boolean
     Public ReadOnly Property LaunchWithGame As Boolean
     Public ReadOnly Property RunAsAdministrator As Boolean
-    Public ReadOnly Property BackendOnly As Boolean
-    Public Property ListenAddress As String
-    Public Property PortText As String
-    Public Property HotkeyText As String
-    Private ReadOnly ExistingConfigCountValue As Integer
+    Private ReadOnly InstallLocation As String
+    Private ReadOnly InstalledVersion As String
+    Private ReadOnly InstalledAt As Nullable(Of DateTime)
 
     Public Sub New(tool As ToolManifestEntry, status As ToolRuntimeStatus, Optional updateAvailable As Boolean = False, Optional state As ToolInstallState = Nothing)
         Me.Tool = tool
@@ -868,19 +686,10 @@ Public Class ToolCardViewModel
         Me.UpdateAvailable = updateAvailable
         Me.LaunchWithGame = state?.LaunchWithGame
         Me.RunAsAdministrator = If(state Is Nothing, tool.RequiresAdmin, state.RunAsAdministrator)
-        Me.BackendOnly = state?.BackendOnly
-        Me.ListenAddress = If(String.IsNullOrWhiteSpace(state?.ListenAddress), "127.0.0.1", state.ListenAddress)
-        Me.PortText = If(If(state?.Port, 0) > 0, state.Port.ToString(), Status.Port.ToString())
-        Dim configuredHotkeys = If(state?.Hotkeys, New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase))
-        If configuredHotkeys.Count = 0 AndAlso tool.Hotkeys IsNot Nothing Then
-            configuredHotkeys = tool.Hotkeys.ToDictionary(Function(item) item.Name, Function(item) item.DefaultValue, StringComparer.OrdinalIgnoreCase)
-        End If
-        Me.HotkeyText = String.Join("; ", configuredHotkeys.Select(Function(item) $"{item.Key}={item.Value}"))
-        ExistingConfigCountValue = If(tool.ConfigFiles, New List(Of ToolConfigFileEntry)).
-            Where(Function(config)
-                      Dim path = (New ConfigSnapshotService).ResolveConfigPath(tool, config)
-                      Return File.Exists(path) OrElse Directory.Exists(path)
-                  End Function).Count()
+        Dim installService As New ToolInstallService
+        InstallLocation = installService.GetInstallLocation(tool)
+        InstalledVersion = installService.GetInstalledVersion(tool)
+        InstalledAt = installService.GetInstalledAt(tool)
     End Sub
 
     Public ReadOnly Property DisplayName As String
@@ -895,77 +704,30 @@ Public Class ToolCardViewModel
         End Get
     End Property
 
-    Public ReadOnly Property HasPort As Boolean
-        Get
-            Return Status.Port > 0 OrElse Tool.Backend?.DefaultPort > 0 OrElse Tool.[Single]?.DefaultPort > 0
-        End Get
-    End Property
-
-    Public ReadOnly Property HasHotkeys As Boolean
-        Get
-            Return Tool.Hotkeys IsNot Nothing AndAlso Tool.Hotkeys.Count > 0
-        End Get
-    End Property
-
-    Public ReadOnly Property ExistingConfigCount As Integer
-        Get
-            Return ExistingConfigCountValue
-        End Get
-    End Property
-
-    Public ReadOnly Property PortVisibility As Visibility
-        Get
-            Return If(HasPort, Visibility.Visible, Visibility.Collapsed)
-        End Get
-    End Property
-
-    Public ReadOnly Property TelemetryVisibility As Visibility
-        Get
-            Return If(Tool.TelemetryPort > 0, Visibility.Visible, Visibility.Collapsed)
-        End Get
-    End Property
-
-    Public ReadOnly Property HotkeyVisibility As Visibility
-        Get
-            Return If(HasHotkeys, Visibility.Visible, Visibility.Collapsed)
-        End Get
-    End Property
-
     Public ReadOnly Property BackendVisibility As Visibility
         Get
             Return If(HasBackend, Visibility.Visible, Visibility.Collapsed)
         End Get
     End Property
 
-    Public ReadOnly Property ConfigVisibility As Visibility
+    Public ReadOnly Property InstallLocationLine As String
         Get
-            Return If(ExistingConfigCount > 0, Visibility.Visible, Visibility.Collapsed)
+            Return FhLanguage.Text("安装位置：", "Install location: ") & InstallLocation
         End Get
     End Property
 
-    Public ReadOnly Property RuntimeConfigVisibility As Visibility
+    Public ReadOnly Property InstalledVersionLine As String
         Get
-            Return If(HasPort OrElse HasHotkeys, Visibility.Visible, Visibility.Collapsed)
+            Return FhLanguage.Text("安装版本：", "Installed version: ") & InstalledVersion
         End Get
     End Property
 
-    Public ReadOnly Property TelemetryPortLine As String
+    Public ReadOnly Property InstallTimeLine As String
         Get
-            If Tool.TelemetryPort <= 0 Then Return FhLanguage.Text("游戏遥测端口：无", "Game telemetry port: none")
-            Return FhLanguage.Text($"游戏遥测端口：{Tool.TelemetryPort}", $"Game telemetry port: {Tool.TelemetryPort}")
+            Dim value = If(InstalledAt.HasValue, InstalledAt.Value.ToString("yyyy-MM-dd HH:mm:ss"), "-")
+            Return FhLanguage.Text("安装时间：", "Installed at: ") & value
         End Get
     End Property
-
-    Public Function ParseHotkeys() As Dictionary(Of String, String)
-        Dim result As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
-        For Each part In If(HotkeyText, "").Split(";"c)
-            Dim pair = part.Split({"="c}, 2)
-            If pair.Length = 2 AndAlso Not String.IsNullOrWhiteSpace(pair(0)) AndAlso Not String.IsNullOrWhiteSpace(pair(1)) Then
-                result(pair(0).Trim()) = pair(1).Trim()
-            End If
-        Next
-        Return result
-    End Function
 
     Public ReadOnly Property RuntimeDisplayName As String
         Get
@@ -1031,20 +793,6 @@ Public Class ToolCardViewModel
         End Get
     End Property
 
-    Public ReadOnly Property PortLine As String
-        Get
-            If Status.Port <= 0 Then Return FhLanguage.Text("端口：无", "Port: none")
-            Return FhLanguage.Text($"端口：{Status.Port} | 监听：{Status.PortListening} | 健康：{Status.HealthOk}", $"Port: {Status.Port} | Listening: {Status.PortListening} | Health: {Status.HealthOk}")
-        End Get
-    End Property
-
-    Public ReadOnly Property ConfigLine As String
-        Get
-            Dim count = ExistingConfigCount
-            Return FhLanguage.Text($"配置文件：{count} | 风险：{Tool.RiskLevel}", $"Config files: {count} | Risk: {Tool.RiskLevel}")
-        End Get
-    End Property
-
     Public ReadOnly Property HealthLine As String
         Get
             If Status.HealthOk Then Return FhLanguage.Text("健康状态：正常", "Health: healthy")
@@ -1094,30 +842,6 @@ Public Class ToolCardViewModel
     Public ReadOnly Property FolderText As String
         Get
             Return FhLanguage.Text("打开文件夹", "Open Folder")
-        End Get
-    End Property
-
-    Public ReadOnly Property ConfigText As String
-        Get
-            Return FhLanguage.Text("打开配置", "Open Config")
-        End Get
-    End Property
-
-    Public ReadOnly Property BackupText As String
-        Get
-            Return FhLanguage.Text("备份配置", "Back Up Config")
-        End Get
-    End Property
-
-    Public ReadOnly Property RestoreText As String
-        Get
-            Return FhLanguage.Text("恢复配置", "Restore Config")
-        End Get
-    End Property
-
-    Public ReadOnly Property LogsText As String
-        Get
-            Return FhLanguage.Text("打开日志", "Open Logs")
         End Get
     End Property
 

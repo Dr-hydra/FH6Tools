@@ -17,6 +17,7 @@
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,12,0">
                                     <TextBlock Text="{Binding RuntimeStateText}" VerticalAlignment="Center" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,10,0" />
                                     <local:MyCheckBox Text="随游戏启动" Checked="{Binding LaunchWithGame}" Change="ToolLaunchWithGame_Change" Margin="0,0,10,0" />
+                                    <local:MyCheckBox Text="管理员启动" Checked="{Binding RunAsAdministrator}" Change="ToolRunAsAdministrator_Change" Margin="0,0,10,0" />
                                     <local:MyButton Text="{Binding BackendText}" Visibility="{Binding BackendVisibility}" Padding="9,5" Margin="0,0,6,0" Click="ToolStartBackend_Click" />
                                     <local:MyButton Text="{Binding FrontendText}" Visibility="{Binding BackendVisibility}" Padding="9,5" Margin="0,0,6,0" Click="ToolOpenFrontend_Click" />
                                     <local:MyButton Text="{Binding StartText}" Padding="9,5" ColorType="Highlight" Margin="0,0,6,0" Click="ToolStartAll_Click" />
@@ -35,34 +36,9 @@
                         <DataTemplate>
                             <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True" Loaded="ConfigToolCard_Loaded" Swap="ConfigToolCard_Swap">
                                 <StackPanel x:Name="ConfigToolCardContent" Margin="18,46,18,18">
-                                    <TextBlock Text="{Binding ConfigLine}" Visibility="{Binding ConfigVisibility}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                                    <TextBlock Text="{Binding PortLine}" Visibility="{Binding PortVisibility}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                                    <Grid Margin="0,0,0,10" Visibility="{Binding PortVisibility}">
-                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="监听地址" Margin="0,0,0,4" />
-                                            <local:MyTextBox Text="{Binding ListenAddress, UpdateSourceTrigger=PropertyChanged}" Height="32" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="服务监听端口" Margin="0,0,0,4" />
-                                            <local:MyTextBox Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Height="32" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <TextBlock Text="{Binding TelemetryPortLine}" Visibility="{Binding TelemetryVisibility}" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
-                                    <TextBlock Text="热键配置" Visibility="{Binding HotkeyVisibility}" Margin="0,0,0,4" />
-                                    <local:MyTextBox Text="{Binding HotkeyText, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding HotkeyVisibility}" Height="32" Margin="0,0,0,12" />
-                                    <local:MyCheckBox Text="需要管理员权限启动" Checked="{Binding RunAsAdministrator}" Change="ToolRunAsAdministrator_Change" Margin="0,0,0,10" />
-                                    <local:MyCheckBox Text="仅启动后端" Checked="{Binding BackendOnly}" Visibility="{Binding BackendVisibility}" Change="ToolBackendOnly_Change" Margin="0,0,0,14" />
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition />
-                                            <ColumnDefinition Width="8" /><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition />
-                                        </Grid.ColumnDefinitions>
-                                        <local:MyButton Text="保存运行配置" Visibility="{Binding RuntimeConfigVisibility}" Padding="10,7" Click="ToolSaveRuntimeConfig_Click" />
-                                        <local:MyButton Grid.Column="2" Text="{Binding ConfigText}" Visibility="{Binding ConfigVisibility}" Padding="10,7" Click="ToolOpenConfig_Click" />
-                                        <local:MyButton Grid.Column="4" Text="{Binding BackupText}" Visibility="{Binding ConfigVisibility}" Padding="10,7" Click="ToolBackupConfig_Click" />
-                                        <local:MyButton Grid.Column="6" Text="{Binding RestoreText}" Visibility="{Binding ConfigVisibility}" Padding="10,7" Click="ToolRestoreConfig_Click" />
-                                    </Grid>
+                                    <TextBlock Text="{Binding InstallLocationLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="{Binding InstalledVersionLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="{Binding InstallTimeLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,38,0">
                                     <local:MyIconTextButton Text="安装位置" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M96 256h320l96 96h416v448H96z" Click="HeaderToolOpenFolder_Click" />
@@ -121,10 +97,8 @@
                         <local:MyRadioBox x:Name="RadioStartupOn" Text="启用" Tag="on" Margin="0,0,18,0" />
                         <local:MyRadioBox x:Name="RadioStartupOff" Text="关闭" Tag="off" Checked="True" />
                     </StackPanel>
-                    <TextBlock x:Name="LabConfigStatus" Text="可打开、备份或恢复工具配置。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,14" />
                     <StackPanel Orientation="Horizontal">
                         <local:MyButton x:Name="BtnOpenAppRoot" Text="打开软件目录" Padding="14,7" Margin="0,0,8,0" />
-                        <local:MyButton x:Name="BtnOpenConfigRoot" Text="打开配置目录" Padding="14,7" Margin="0,0,8,0" />
                         <local:MyButton x:Name="BtnOpenDataRoot" Text="打开数据目录" Padding="14,7" />
                     </StackPanel>
                 </StackPanel>
@@ -145,8 +119,6 @@
                         <local:MyButton x:Name="BtnRefreshGame" Grid.Column="2" Text="重新检测游戏" Padding="12,8" />
                         <local:MyButton x:Name="BtnOpenGameFolder" Grid.Column="4" Text="打开游戏目录" Padding="12,8" />
                     </Grid>
-                    <local:MyButton x:Name="BtnBackupGameData" Text="备份游戏数据" Padding="18,8" Margin="0,0,0,8" />
-                    <local:MyButton x:Name="BtnOpenGameBackups" Text="打开游戏备份" Padding="18,8" />
                 </StackPanel>
             </local:MyCard>
 

@@ -14,6 +14,30 @@ Public Class ToolInstallService
         Return Path.Combine(FhPaths.ToolsRoot, tool.Id)
     End Function
 
+    Public Function GetInstallLocation(tool As ToolManifestEntry) As String
+        Dim installPath = GetInstallPath(tool)
+        Return If(File.Exists(installPath), Path.GetDirectoryName(installPath), installPath)
+    End Function
+
+    Public Function GetInstalledVersion(tool As ToolManifestEntry) As String
+        If String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then Return FhLanguage.Text("本地导入", "Local import")
+        Dim marker = Path.Combine(GetInstallPath(tool), ".fh6tools-version")
+        If File.Exists(marker) Then
+            Dim version = File.ReadAllText(marker).Trim()
+            If Not String.IsNullOrWhiteSpace(version) Then Return version
+        End If
+        Return If(String.IsNullOrWhiteSpace(tool.Version), "-", tool.Version)
+    End Function
+
+    Public Function GetInstalledAt(tool As ToolManifestEntry) As Nullable(Of DateTime)
+        Dim installPath = GetInstallPath(tool)
+        Dim marker = If(Directory.Exists(installPath), Path.Combine(installPath, ".fh6tools-version"), "")
+        If File.Exists(marker) Then Return File.GetCreationTime(marker)
+        If File.Exists(installPath) Then Return File.GetCreationTime(installPath)
+        If Directory.Exists(installPath) Then Return Directory.GetCreationTime(installPath)
+        Return Nothing
+    End Function
+
     Public Function IsInstalled(tool As ToolManifestEntry) As Boolean
         If IsBlocked(tool) Then Return False
         If tool.InstallType = "local" Then Return File.Exists(GetInstallPath(tool))

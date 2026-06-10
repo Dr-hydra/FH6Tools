@@ -1,4 +1,5 @@
 Imports System.Text.Json
+Imports System.Text.RegularExpressions
 
 Public Class ToolManifestService
     Private Shared ReadOnly ManifestClient As New HttpClient With {.Timeout = TimeSpan.FromSeconds(5)}
@@ -6,6 +7,10 @@ Public Class ToolManifestService
         .PropertyNameCaseInsensitive = True,
         .WriteIndented = True
     }
+
+    Shared Sub New()
+        ManifestClient.DefaultRequestHeaders.UserAgent.ParseAdd("FH6Tools")
+    End Sub
 
     Public Async Function LoadToolsAsync() As Task(Of List(Of ToolManifestEntry))
         FhPaths.Ensure()
@@ -34,21 +39,91 @@ Public Class ToolManifestService
     End Function
 
     Public Async Function RefreshDynamicManifestAsync() As Task(Of Boolean)
+        Dim refreshed As Boolean
         Dim source = Environment.GetEnvironmentVariable("FH6TOOLS_MANIFEST_URL")
         If String.IsNullOrWhiteSpace(source) AndAlso File.Exists(FhPaths.ManifestSourcePath) Then
             source = (Await File.ReadAllTextAsync(FhPaths.ManifestSourcePath)).Trim()
         End If
-        If String.IsNullOrWhiteSpace(source) Then Return False
-        Try
-            Dim json = Await ManifestClient.GetStringAsync(source)
-            Dim manifest = JsonSerializer.Deserialize(Of ToolManifest)(json, JsonOptions)
-            If manifest Is Nothing OrElse manifest.Tools Is Nothing Then Return False
+        If Not String.IsNullOrWhiteSpace(source) Then
+            Try
+                Dim json = Await ManifestClient.GetStringAsync(source)
+                Dim manifest = JsonSerializer.Deserialize(Of ToolManifest)(json, JsonOptions)
+                If manifest IsNot Nothing AndAlso manifest.Tools IsNot Nothing Then
+                    Await File.WriteAllTextAsync(FhPaths.ManifestPath, JsonSerializer.Serialize(manifest, JsonOptions))
+                    refreshed = True
+                End If
+            Catch ex As Exception
+                Logger.Warn(ex, "Dynamic tool manifest refresh failed; using local manifest.")
+            End Try
+        End If
+        Return Await RefreshReleaseMetadataAsync() OrElse refreshed
+    End Function
+
+    Private Async Function RefreshReleaseMetadataAsync() As Task(Of Boolean)
+        If Not File.Exists(FhPaths.ManifestPath) Then Return False
+        Dim manifest = JsonSerializer.Deserialize(Of ToolManifest)(Await File.ReadAllTextAsync(FhPaths.ManifestPath), JsonOptions)
+        If manifest Is Nothing OrElse manifest.Tools Is Nothing Then Return False
+
+        Dim changed As Boolean
+        Dim tasks = manifest.Tools.Select(Async Function(tool)
+                                              Dim repo = ParseGitHubRepository(tool.Homepage)
+                                              If repo Is Nothing Then Return False
+                                              Try
+                                                  Dim json = Await ManifestClient.GetStringAsync($"https://api.github.com/repos/{repo.Value.Owner}/{repo.Value.Repository}/releases/latest")
+                                                  Using document = JsonDocument.Parse(json)
+                                                      Dim root = document.RootElement
+                                                      Dim asset = SelectPreferredAsset(root.GetProperty("assets"), repo.Value.Owner)
+                                                      If asset.ValueKind = JsonValueKind.Undefined Then Return False
+                                                      tool.Version = root.GetProperty("tag_name").GetString()
+                                                      tool.DownloadUrl = asset.GetProperty("browser_download_url").GetString()
+                                                      tool.InstallType = If(asset.GetProperty("name").GetString().EndsWith(".zip", StringComparison.OrdinalIgnoreCase), "zip", "portableExe")
+                                                      Return True
+                                                  End Using
+                                              Catch ex As Exception
+                                                  Logger.Warn(ex, $"Release metadata refresh failed for {tool.Name}.")
+                                                  Return False
+                                              End Try
+                                          End Function).ToArray()
+        For Each result In Await Task.WhenAll(tasks)
+            changed = changed OrElse result
+        Next
+        If changed Then
+            manifest.UpdatedAt = DateTimeOffset.Now.ToString("O")
             Await File.WriteAllTextAsync(FhPaths.ManifestPath, JsonSerializer.Serialize(manifest, JsonOptions))
-            Return True
-        Catch ex As Exception
-            Logger.Warn(ex, "Dynamic tool manifest refresh failed.")
-            Return False
-        End Try
+        End If
+        Return changed
+    End Function
+
+    Private Shared Function ParseGitHubRepository(homepage As String) As (Owner As String, Repository As String)?
+        Dim match = Regex.Match(If(homepage, ""), "^https://github\.com/([^/]+)/([^/#?]+)", RegexOptions.IgnoreCase)
+        If Not match.Success Then Return Nothing
+        Return (match.Groups(1).Value, match.Groups(2).Value)
+    End Function
+
+    Private Shared Function SelectPreferredAsset(assets As JsonElement, owner As String) As JsonElement
+        Dim candidates = assets.EnumerateArray().
+            Where(Function(asset)
+                      Dim name = asset.GetProperty("name").GetString()
+                      Return name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) OrElse
+                             name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                  End Function).
+            OrderByDescending(Function(asset) GetAssetScore(asset.GetProperty("name").GetString(), owner)).
+            ToList()
+        Return If(candidates.Count = 0, Nothing, candidates(0))
+    End Function
+
+    Private Shared Function GetAssetScore(name As String, owner As String) As Integer
+        Dim lower = name.ToLowerInvariant()
+        Dim score = If(lower.EndsWith(".zip"), 100, 10)
+        If owner.Equals("Dr-hydra", StringComparison.OrdinalIgnoreCase) Then
+            If lower.Contains("without-runtime") Then score += 1000
+            If lower.Contains("full-framework-dependent") Then score += 950
+            If lower.Contains("framework-dependent") AndAlso Not lower.Contains("self-contained") Then score += 900
+            If lower.Contains("with-runtime") OrElse lower.Contains("self-contained") Then score -= 1000
+        End If
+        If lower.Contains("backend") Then score -= 100
+        If lower.Contains("installer") Then score -= 200
+        Return score
     End Function
 
     Public Async Function LoadStateAsync() As Task(Of ToolStateStore)

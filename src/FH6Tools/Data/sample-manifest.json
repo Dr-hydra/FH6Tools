@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-05T00:00:00+08:00",
+  "updatedAt": "2026-06-10T05:17:05.010Z",
   "tools": [
     {
       "id": "omnimix-vbnet-frontend",
@@ -9,7 +9,7 @@
       "category": "audio",
       "description": "Windows frontend for OmniMix; the frontend starts or discovers the bundled backend.",
       "homepage": "https://github.com/Dr-hydra/OmniMix-VBNet-Frontend",
-      "downloadUrl": "github-release://Dr-hydra/OmniMix-VBNet-Frontend/*with-ChillPatcher-backend.zip",
+      "downloadUrl": "github-release://Dr-hydra/OmniMix-VBNet-Frontend/*full-framework-dependent.zip",
       "sha256": "",
       "installType": "zip",
       "toolType": "single",
@@ -43,18 +43,18 @@
       "notes": "Start the frontend first; it manages backend discovery/lifetime."
     },
     {
-      "id": "fh-language-combo-tool",
-      "name": "FH Language Combo Tool",
+      "id": "fh6-auction-house-sniper",
+      "name": "FH6 Auction House Sniper",
       "version": "latest",
-      "category": "language",
-      "description": "Mix voice and text languages for FH5/FH6 with reversible local backups.",
-      "homepage": "https://github.com/SiskonEmilia/ForzaHorizonLanguageTool",
-      "downloadUrl": "github-release://SiskonEmilia/ForzaHorizonLanguageTool/FH-Language-Combo-Tool-Portable.exe",
+      "category": "utility",
+      "description": "FH6 Auction House Sniper",
+      "homepage": "https://github.com/Dr-hydra/FH6-Auction-House-Sniper",
+      "downloadUrl": "github-release://Dr-hydra/FH6-Auction-House-Sniper/*.zip",
       "sha256": "",
-      "installType": "portableExe",
+      "installType": "zip",
       "toolType": "single",
       "single": {
-        "executable": "*FH-Language-Combo-Tool-Portable.exe",
+        "executable": "*.exe",
         "workingDirectory": "",
         "defaultPort": 0,
         "healthUrl": "",
@@ -64,46 +64,64 @@
       "configFiles": [],
       "requiresAdmin": false,
       "riskLevel": "normal",
-      "notes": "Portable release; modifies local language resource files and keeps its own backups."
+      "notes": ""
     },
     {
-      "id": "fh6-auction-house-sniper",
-      "name": "FH6 Auction House Sniper",
+      "id": "fh-language-combo-tool",
+      "name": "FH Language Combo Tool",
       "version": "latest",
-      "category": "blocked",
-      "description": "Blocked: automates FH6 online auction-house buying and online economy actions.",
-      "homepage": "https://github.com/FrostyIsBored/FH6-Auction-House-Sniper",
-      "downloadUrl": "github-release://FrostyIsBored/FH6-Auction-House-Sniper/FH6-Sniper.zip",
+      "category": "utility",
+      "description": "FH Language Combo Tool",
+      "homepage": "https://github.com/Dr-hydra/FH-Language-Combo-Tool",
+      "downloadUrl": "github-release://Dr-hydra/FH-Language-Combo-Tool/*framework-dependent.exe",
       "sha256": "",
-      "installType": "zip",
+      "installType": "portableExe",
       "toolType": "single",
       "single": {
-        "executable": "FH6-Sniper.exe",
+        "executable": "*FH-Language-Combo-Tool*.exe",
         "workingDirectory": "",
         "defaultPort": 0,
         "healthUrl": "",
         "url": "",
         "arguments": []
       },
-      "configFiles": [
-        {
-          "name": "Config",
-          "path": "config.json",
-          "kind": "file"
-        }
-      ],
+      "configFiles": [],
       "requiresAdmin": false,
-      "riskLevel": "blocked",
-      "notes": "Not launched or installed by FH6Tools because it conflicts with the project safety policy."
+      "riskLevel": "normal",
+      "notes": ""
+    },
+    {
+      "id": "fh6farm",
+      "name": "FH6Farm",
+      "version": "latest",
+      "category": "automation",
+      "description": "FH6 farming utility provided by Dr-hydra.",
+      "homepage": "https://github.com/Dr-hydra/FH6Farm",
+      "downloadUrl": "github-release://Dr-hydra/FH6Farm/*without-runtime.zip",
+      "sha256": "",
+      "installType": "zip",
+      "toolType": "single",
+      "single": {
+        "executable": "**\\FH6Farm.exe",
+        "workingDirectory": "",
+        "defaultPort": 0,
+        "healthUrl": "",
+        "url": "",
+        "arguments": []
+      },
+      "configFiles": [],
+      "requiresAdmin": false,
+      "riskLevel": "normal",
+      "notes": ""
     },
     {
       "id": "fh6-virtual-tcu-backend",
-      "name": "Virtual TCU Backend",
+      "name": "Virtual TCU",
       "version": "latest",
       "category": "telemetry",
       "description": "Backend-only Virtual TCU build with browser dashboard and local WebSocket/HTTP service.",
       "homepage": "https://github.com/Forza-Love/fh6-virtual_tcu",
-      "downloadUrl": "github-release://Forza-Love/fh6-virtual_tcu/VirtualTCU-Backend-*-win64.zip",
+      "downloadUrl": "github-release://Forza-Love/fh6-virtual_tcu/VirtualTCU-*-win64.zip",
       "sha256": "",
       "installType": "zip",
       "toolType": "frontendBackend",
@@ -145,81 +163,13 @@
       "notes": "FH6 Data Out UDP port defaults to 5555; dashboard HTTP/WebSocket port defaults to 8765."
     },
     {
-      "id": "fh6-road-scanner",
-      "name": "FH6 Road Scanner",
-      "version": "latest",
-      "category": "map",
-      "description": "Screenshot-based helper for finding possibly missed unexplored roads.",
-      "homepage": "https://github.com/LahantziBade/FH6-Road-Scanner",
-      "downloadUrl": "github-release://LahantziBade/FH6-Road-Scanner/fh6-road-scanner-*.zip",
-      "sha256": "",
-      "installType": "zip",
-      "toolType": "single",
-      "single": {
-        "executable": "main.exe",
-        "workingDirectory": "",
-        "defaultPort": 0,
-        "healthUrl": "",
-        "url": "",
-        "arguments": []
-      },
-      "configFiles": [
-        {
-          "name": "Config",
-          "path": "config.json",
-          "kind": "file"
-        },
-        {
-          "name": "Scan Hits",
-          "path": "scan_hits",
-          "kind": "directory"
-        }
-      ],
-      "requiresAdmin": false,
-      "riskLevel": "normal",
-      "notes": "Uses screenshots and mouse movement; does not modify game files, memory, save data, or online data."
-    },
-    {
-      "id": "fh6-subtitle-switcher",
-      "name": "FH6 Subtitle Switcher",
-      "version": "latest",
-      "category": "language",
-      "description": "Switch FH6 subtitle/text preference while keeping tool config inside the tool profile.",
-      "homepage": "https://github.com/xpdai/FH6-Subtitle-Switcher",
-      "downloadUrl": "github-release://xpdai/FH6-Subtitle-Switcher/FH6_Subtitle_Switcher.exe",
-      "sha256": "",
-      "installType": "portableExe",
-      "toolType": "single",
-      "single": {
-        "executable": "*FH6_Subtitle_Switcher.exe",
-        "workingDirectory": "",
-        "defaultPort": 0,
-        "healthUrl": "",
-        "url": "",
-        "arguments": [],
-        "environmentVariables": {
-          "APPDATA": "{toolRoot}\\profile\\AppData\\Roaming"
-        }
-      },
-      "configFiles": [
-        {
-          "name": "Tool Config",
-          "path": "profile\\AppData\\Roaming\\FH6SubtitleSwitcher\\config.json",
-          "kind": "file"
-        }
-      ],
-      "requiresAdmin": false,
-      "riskLevel": "normal",
-      "notes": "APPDATA is redirected to the tool folder for this process; LOCALAPPDATA is left intact so it can find FH6 game preferences."
-    },
-    {
       "id": "horizon-haptics",
       "name": "HorizonHaptics",
       "version": "latest",
       "category": "controller",
       "description": "DualSense adaptive trigger and haptics bridge for FH6 Data Out telemetry.",
       "homepage": "https://github.com/haritha99ch/HorizonHaptics",
-      "downloadUrl": "github-release://haritha99ch/HorizonHaptics/HorizonHaptics-*.zip",
+      "downloadUrl": "github-release://haritha99ch/HorizonHaptics/*.zip",
       "sha256": "",
       "installType": "zip",
       "toolType": "single",
@@ -252,48 +202,13 @@
       "notes": "Receives FH6 UDP telemetry on port 5300; first run may need firewall approval."
     },
     {
-      "id": "fh6-auto",
-      "name": "FH6Auto",
-      "version": "latest",
-      "category": "blocked",
-      "description": "Blocked: gameplay automation includes repeated racing, buying cars, wheelspin, and long-running automation loops.",
-      "homepage": "https://github.com/YOUSTHEONE/FH6Auto",
-      "downloadUrl": "github-release://YOUSTHEONE/FH6Auto/FH6Auto*.exe",
-      "sha256": "",
-      "installType": "portableExe",
-      "toolType": "single",
-      "single": {
-        "executable": "*FH6Auto*.exe",
-        "workingDirectory": "",
-        "defaultPort": 0,
-        "healthUrl": "",
-        "url": "",
-        "arguments": []
-      },
-      "configFiles": [
-        {
-          "name": "Config",
-          "path": "config.json",
-          "kind": "file"
-        },
-        {
-          "name": "Logs",
-          "path": "bot_log.txt",
-          "kind": "file"
-        }
-      ],
-      "requiresAdmin": false,
-      "riskLevel": "blocked",
-      "notes": "Not launched or installed by FH6Tools because it conflicts with the project safety policy."
-    },
-    {
       "id": "forza-painter-fh6",
       "name": "Forza Painter FH6",
       "version": "latest",
       "category": "livery",
       "description": "Image-to-FH6 painter/import workflow with generated JSON and configurable geometry settings.",
       "homepage": "https://github.com/bvzrays/forza-painter-fh6",
-      "downloadUrl": "github-release://bvzrays/forza-painter-fh6/forza-painter-fh6.exe",
+      "downloadUrl": "github-release://bvzrays/forza-painter-fh6/*.exe",
       "sha256": "",
       "installType": "portableExe",
       "toolType": "single",

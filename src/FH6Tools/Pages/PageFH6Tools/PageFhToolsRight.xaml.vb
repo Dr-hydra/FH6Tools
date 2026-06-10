@@ -693,7 +693,28 @@ Public Class PageFhToolsRight
         Dim card = TryCast(sender, MyCard)
         If card Is Nothing Then Return
         Dim content = card.Children.OfType(Of StackPanel)().FirstOrDefault()
-        If content IsNot Nothing Then card.SwapControl = content
+        If content Is Nothing Then Return
+        card.SwapControl = content
+        SynchronizeConfigToolCardHeight(card)
+    End Sub
+
+    Private Sub ConfigToolCard_Swap(sender As Object, e As RouteEventArgs)
+        Dim card = TryCast(sender, MyCard)
+        If card IsNot Nothing Then SynchronizeConfigToolCardHeight(card)
+    End Sub
+
+    Private Shared Sub SynchronizeConfigToolCardHeight(card As MyCard)
+        Dim useAnimation = card.UseAnimation
+        card.UseAnimation = False
+        If card.IsSwapped Then
+            card.SwapControl.Visibility = Visibility.Collapsed
+            card.Height = MyCard.SwapedHeight
+        Else
+            card.SwapControl.Visibility = Visibility.Visible
+            card.Height = Double.NaN
+        End If
+        card.TriggerForceResize()
+        card.UseAnimation = useAnimation
     End Sub
 
     Private Sub OpenToolFolder(sender As Object)

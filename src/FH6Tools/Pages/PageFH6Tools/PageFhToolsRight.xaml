@@ -33,7 +33,7 @@
                 <ItemsControl x:Name="ConfigToolCards">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True" Loaded="ConfigToolCard_Loaded">
+                            <local:MyCard Title="{Binding DisplayName}" Margin="0,0,0,10" CanSwap="True" IsSwaped="True" Loaded="ConfigToolCard_Loaded" Swap="ConfigToolCard_Swap">
                                 <StackPanel x:Name="ConfigToolCardContent" Margin="18,46,18,18">
                                     <TextBlock Text="{Binding ConfigLine}" Visibility="{Binding ConfigVisibility}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />
                                     <TextBlock Text="{Binding PortLine}" Visibility="{Binding PortVisibility}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,12" />

@@ -3,6 +3,7 @@ Imports System.Text.RegularExpressions
 
 Public Class ToolManifestService
     Private Shared ReadOnly ManifestClient As New HttpClient With {.Timeout = TimeSpan.FromSeconds(5)}
+    Private Const RemoteToolNote As String = "Added from the restricted remote tool metadata manifest."
     Private TrustedManifestInitialized As Boolean
     Private Shared ReadOnly JsonOptions As New JsonSerializerOptions With {
         .PropertyNameCaseInsensitive = True,
@@ -20,7 +21,7 @@ Public Class ToolManifestService
         Dim result As New List(Of ToolManifestEntry)
         Dim manifest = JsonSerializer.Deserialize(Of ToolManifest)(Await File.ReadAllTextAsync(FhPaths.ManifestPath), JsonOptions)
         If manifest IsNot Nothing AndAlso manifest.Tools IsNot Nothing Then
-            ApplyMetadata(manifest.Tools, Await LoadMetadataAsync())
+            MergeMetadata(manifest.Tools, Await LoadMetadataAsync(), True)
             For Each tool In manifest.Tools
                 tool.Source = "curated"
                 result.Add(tool)
@@ -51,8 +52,8 @@ Public Class ToolManifestService
             Try
                 Dim json = Await ManifestClient.GetStringAsync(source)
                 Dim metadata = JsonSerializer.Deserialize(Of ToolMetadataManifest)(json, JsonOptions)
-                If metadata IsNot Nothing AndAlso metadata.Tools IsNot Nothing AndAlso
-                   metadata.Tools.All(Function(tool) Not String.IsNullOrWhiteSpace(tool.Id)) Then
+                If metadata IsNot Nothing AndAlso metadata.Tools IsNot Nothing Then
+                    metadata.Tools = metadata.Tools.Where(Function(tool) IsValidRemoteMetadata(tool)).ToList()
                     Await File.WriteAllTextAsync(FhPaths.MetadataPath, JsonSerializer.Serialize(metadata, JsonOptions))
                     refreshed = True
                 End If
@@ -67,6 +68,7 @@ Public Class ToolManifestService
         If Not File.Exists(FhPaths.ManifestPath) Then Return False
         Dim manifest = JsonSerializer.Deserialize(Of ToolManifest)(Await File.ReadAllTextAsync(FhPaths.ManifestPath), JsonOptions)
         If manifest Is Nothing OrElse manifest.Tools Is Nothing Then Return False
+        MergeMetadata(manifest.Tools, Await LoadMetadataAsync(), False)
 
         Dim changed As Boolean
         Dim tasks = manifest.Tools.Select(Async Function(tool)
@@ -189,21 +191,63 @@ Public Class ToolManifestService
         End Try
     End Function
 
-    Private Shared Sub ApplyMetadata(tools As IEnumerable(Of ToolManifestEntry), metadata As ToolMetadataManifest)
+    Private Shared Sub MergeMetadata(tools As List(Of ToolManifestEntry), metadata As ToolMetadataManifest, updateExistingDisplayFields As Boolean)
         If metadata?.Tools Is Nothing Then Return
+        Dim previousRemote = tools.
+            Where(Function(tool) String.Equals(tool.Notes, RemoteToolNote, StringComparison.Ordinal)).
+            GroupBy(Function(tool) tool.Id, StringComparer.OrdinalIgnoreCase).
+            ToDictionary(Function(group) group.Key, Function(group) group.First(), StringComparer.OrdinalIgnoreCase)
+        tools.RemoveAll(Function(tool) String.Equals(tool.Notes, RemoteToolNote, StringComparison.Ordinal))
         Dim entries = metadata.Tools.
-            Where(Function(item) Not String.IsNullOrWhiteSpace(item.Id)).
+            Where(Function(item) IsValidRemoteMetadata(item)).
             GroupBy(Function(item) item.Id, StringComparer.OrdinalIgnoreCase).
             ToDictionary(Function(group) group.Key, Function(group) group.First(), StringComparer.OrdinalIgnoreCase)
-        For Each tool In tools
+        For Each tool In tools.ToList()
             Dim item As ToolMetadataEntry = Nothing
             If Not entries.TryGetValue(tool.Id, item) Then Continue For
-            If Not String.IsNullOrWhiteSpace(item.Name) Then tool.Name = item.Name
-            If Not String.IsNullOrWhiteSpace(item.Description) Then tool.Description = item.Description
-            If Not String.IsNullOrWhiteSpace(item.DescriptionZh) Then tool.DescriptionZh = item.DescriptionZh
-            If Not String.IsNullOrWhiteSpace(item.Homepage) Then tool.Homepage = item.Homepage
+            If updateExistingDisplayFields Then ApplyDisplayMetadata(tool, item)
+            entries.Remove(tool.Id)
+        Next
+        For Each item In entries.Values
+            Dim repo = ParseGitHubRepository(item.Homepage)
+            If repo Is Nothing Then Continue For
+            Dim tool As New ToolManifestEntry With {
+                .Id = item.Id,
+                .Version = "latest",
+                .Category = "utility",
+                .DownloadUrl = "",
+                .InstallType = "zip",
+                .ToolType = "single",
+                .[Single] = New ToolEndpointDefinition With {.Executable = "**\*.exe"},
+                .RequiresAdmin = False,
+                .RiskLevel = "normal",
+                .Notes = RemoteToolNote,
+                .Source = "remote"
+            }
+            ApplyDisplayMetadata(tool, item)
+            Dim previous As ToolManifestEntry = Nothing
+            If previousRemote.TryGetValue(item.Id, previous) AndAlso
+               String.Equals(previous.Homepage, item.Homepage, StringComparison.OrdinalIgnoreCase) Then
+                tool.Version = previous.Version
+                tool.DownloadUrl = previous.DownloadUrl
+                tool.InstallType = previous.InstallType
+                tool.OnlineStatus = previous.OnlineStatus
+            End If
+            tools.Add(tool)
         Next
     End Sub
+
+    Private Shared Sub ApplyDisplayMetadata(tool As ToolManifestEntry, item As ToolMetadataEntry)
+        If Not String.IsNullOrWhiteSpace(item.Name) Then tool.Name = item.Name
+        If Not String.IsNullOrWhiteSpace(item.Description) Then tool.Description = item.Description
+        If Not String.IsNullOrWhiteSpace(item.DescriptionZh) Then tool.DescriptionZh = item.DescriptionZh
+        If Not String.IsNullOrWhiteSpace(item.Homepage) Then tool.Homepage = item.Homepage
+    End Sub
+
+    Private Shared Function IsValidRemoteMetadata(item As ToolMetadataEntry) As Boolean
+        If item Is Nothing OrElse Not Regex.IsMatch(If(item.Id, ""), "^[a-z0-9][a-z0-9._-]{0,63}$", RegexOptions.IgnoreCase) Then Return False
+        Return Regex.IsMatch(If(item.Homepage, ""), "^https://github\.com/[^/]+/[^/#?]+/?$", RegexOptions.IgnoreCase)
+    End Function
 
     Private Async Function EnsureManifestAsync() As Task
         If TrustedManifestInitialized Then Return

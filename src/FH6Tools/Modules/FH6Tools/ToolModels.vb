@@ -6,6 +6,20 @@ Public Class ToolManifest
     Public Property Tools As List(Of ToolManifestEntry) = New List(Of ToolManifestEntry)
 End Class
 
+Public Class ToolMetadataManifest
+    Public Property SchemaVersion As Integer = 1
+    Public Property UpdatedAt As String = ""
+    Public Property Tools As List(Of ToolMetadataEntry) = New List(Of ToolMetadataEntry)
+End Class
+
+Public Class ToolMetadataEntry
+    Public Property Id As String = ""
+    Public Property Name As String = ""
+    Public Property Description As String = ""
+    Public Property DescriptionZh As String = ""
+    Public Property Homepage As String = ""
+End Class
+
 Public Class ToolManifestEntry
     Public Property Id As String = ""
     Public Property Name As String = ""

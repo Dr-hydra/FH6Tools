@@ -1,0 +1,1 @@
+https://raw.githubusercontent.com/Dr-hydra/FH6Tools/main/src/FH6Tools/Data/tool-metadata.json

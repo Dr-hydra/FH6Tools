@@ -147,7 +147,11 @@ Public Class PageFhToolsRight
         ItemAboutSafety.Title = FhLanguage.Text("安全策略", "Safety Policy")
         ItemAboutSafety.Info = FhLanguage.Text("违反项目安全策略的条目不会被安装或启动。", "Entries that violate the project safety policy are not installed or launched.")
         ItemAboutManifest.Title = FhLanguage.Text("工具清单", "Tool Manifest")
-        ItemAboutManifest.Info = FhLanguage.Text("工具列表会在软件启动时动态更新。", "The tool list is refreshed dynamically when the app starts.")
+        ItemAboutManifest.Info = FhLanguage.Text("运行定义由本地清单控制，远程仅同步项目地址、名称和中英简介。",
+                                                 "Operational definitions are local; remote sync only supplies project URLs, names, and descriptions.")
+        ItemAboutMigration.Title = FhLanguage.Text("v1.1.1 升级提示", "v1.1.1 Upgrade Notice")
+        ItemAboutMigration.Info = FhLanguage.Text("清单架构已更改，从 v1.1.0 或更早版本升级时需要重新下载完整发布包。",
+                                                  "The manifest architecture changed; users on v1.1.0 or earlier must download the complete release package again.")
         ItemAboutUpdateProtection.Title = FhLanguage.Text("更新数据保护", "Update Data Protection")
         ItemAboutUpdateProtection.Info = FhLanguage.Text("软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。",
                                                           "App updates replace only program files and preserve configuration, save backups, and installed tools.")
@@ -412,7 +416,7 @@ Public Class PageFhToolsRight
 
     Private Async Sub BtnReloadManifest_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnReloadManifest.Click
         Await RefreshManifestAndToolsAsync()
-        LabDownloadStatus.Text = "Manifest reloaded from " & FhPaths.ManifestPath
+        LabDownloadStatus.Text = FhLanguage.Text("工具元数据和版本信息已更新。", "Tool metadata and release information updated.")
     End Sub
 
     Private Sub BtnChangeInstallRoot_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnChangeInstallRoot.Click

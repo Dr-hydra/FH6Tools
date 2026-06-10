@@ -57,9 +57,15 @@ Public Module FhPaths
         End Get
     End Property
 
-    Public ReadOnly Property ManifestSourcePath As String
+    Public ReadOnly Property MetadataPath As String
         Get
-            Return Path.Combine(AppContext.BaseDirectory, "Data", "manifest-url.txt")
+            Return Path.Combine(AppDataRoot, "tool-metadata.json")
+        End Get
+    End Property
+
+    Public ReadOnly Property MetadataSourcePath As String
+        Get
+            Return Path.Combine(AppContext.BaseDirectory, "Data", "metadata-url.txt")
         End Get
     End Property
 

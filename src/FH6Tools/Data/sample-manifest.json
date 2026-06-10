@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-10T12:00:00.000Z",
+  "updatedAt": "2026-06-10T14:00:00.000Z",
   "tools": [
     {
       "id": "omnimix-vbnet-frontend",
@@ -117,6 +117,49 @@
       "requiresAdmin": false,
       "riskLevel": "normal",
       "notes": ""
+    },
+    {
+      "id": "fh6-road-scanner",
+      "name": "FH6 Road Scanner",
+      "version": "latest",
+      "category": "utility",
+      "description": "A Forza Horizon 6 road exploration helper that scans the map row by row to help locate missed roads.",
+      "descriptionZh": "《极限竞速：地平线 6》道路探索辅助工具，通过逐行扫描地图帮助定位遗漏道路。",
+      "homepage": "https://github.com/Dr-hydra/FH6-Road-Scanner",
+      "downloadUrl": "github-release://Dr-hydra/FH6-Road-Scanner/*framework-dependent.zip",
+      "sha256": "",
+      "installType": "zip",
+      "toolType": "single",
+      "single": {
+        "executable": "**\\FH6RoadScanner.exe",
+        "workingDirectory": "",
+        "defaultPort": 0,
+        "healthUrl": "",
+        "url": "",
+        "arguments": []
+      },
+      "configFiles": [
+        {
+          "name": "Settings",
+          "path": "config.json",
+          "kind": "file"
+        }
+      ],
+      "hotkeys": [
+        {
+          "name": "Start",
+          "defaultValue": "F7",
+          "description": "Start scanning."
+        },
+        {
+          "name": "Stop",
+          "defaultValue": "F8",
+          "description": "Stop scanning."
+        }
+      ],
+      "requiresAdmin": false,
+      "riskLevel": "normal",
+      "notes": "The frontend starts and manages the bundled scanner backend."
     },
     {
       "id": "fh6-virtual-tcu-backend",

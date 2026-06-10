@@ -2,6 +2,7 @@ https://github.com/Dr-hydra/OmniMix-VBNet-Frontend
 https://github.com/Dr-hydra/FH6-Auction-House-Sniper
 https://github.com/Dr-hydra/FH-Language-Combo-Tool
 https://github.com/Dr-hydra/FH6Farm
+https://github.com/Dr-hydra/FH6-Road-Scanner
 https://github.com/Forza-Love/fh6-virtual_tcu
 https://github.com/haritha99ch/HorizonHaptics
 https://github.com/bvzrays/forza-painter-fh6

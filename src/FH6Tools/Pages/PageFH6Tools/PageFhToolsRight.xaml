@@ -124,7 +124,8 @@
             <local:MyCard x:Name="CardAbout" Title="关于 FH6Tools" Visibility="Collapsed">
                 <StackPanel Margin="20,42,20,18">
                     <TextBlock x:Name="LabAboutDescription" Text="FH6Tools 是用于启动地平线 6 和管理社区工具的本地 Windows 工具中心。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
-                    <local:MyListItem x:Name="ItemAboutManifest" Title="工具清单" Info="工具列表会在软件启动时动态更新。" IsHitTestVisible="False" Height="54" />
+                    <local:MyListItem x:Name="ItemAboutManifest" Title="工具清单" Info="运行定义由本地清单控制，远程仅同步项目地址、名称和中英简介。" IsHitTestVisible="False" Height="54" />
+                    <local:MyListItem x:Name="ItemAboutMigration" Title="v1.1.1 升级提示" Info="清单架构已更改，从 v1.1.0 或更早版本升级时需要重新下载完整发布包。" IsHitTestVisible="False" Height="54" Margin="0,8,0,0" />
                     <TextBlock x:Name="LabUiCredit" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,8,0,0">
                         <Run Text="本项目的 UI 设计借鉴了 " />
                         <Hyperlink NavigateUri="https://github.com/Meloong-Git/PCL" RequestNavigate="UiCredit_RequestNavigate">Meloong-Git/PCL</Hyperlink>

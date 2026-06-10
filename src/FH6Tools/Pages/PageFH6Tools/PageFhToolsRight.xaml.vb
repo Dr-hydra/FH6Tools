@@ -14,7 +14,6 @@ Public Class PageFhToolsRight
     Private ReadOnly ConfigService As New ConfigSnapshotService
     Private ReadOnly ToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
     Private ReadOnly InstalledToolCardsSource As New ObservableCollection(Of ToolCardViewModel)
-    Private ReadOnly DownloadTasksSource As New ObservableCollection(Of DownloadTaskViewModel)
     Private ReadOnly RuntimeRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
     Private CurrentTools As List(Of ToolManifestEntry) = New List(Of ToolManifestEntry)
     Private CurrentState As ToolStateStore = New ToolStateStore
@@ -56,7 +55,6 @@ Public Class PageFhToolsRight
         DownloadToolCards.ItemsSource = ToolCardsSource
         InstalledToolCards.ItemsSource = InstalledToolCardsSource
         ConfigToolCards.ItemsSource = InstalledToolCardsSource
-        DownloadTasks.ItemsSource = DownloadTasksSource
         RadioLanguageZh.SetChecked(Not FhLanguage.IsEnglish, False)
         RadioLanguageEn.SetChecked(FhLanguage.IsEnglish, False)
         RadioStartupOn.SetChecked(IsStartupEnabled(), False)
@@ -613,7 +611,6 @@ Public Class PageFhToolsRight
         Dim tool = GetToolFromSender(sender)
         If tool Is Nothing Then Return
         Dim task = New DownloadTaskViewModel(tool)
-        DownloadTasksSource.Add(task)
         PendingInstallTools.Enqueue(task)
         LabDownloadStatus.Text = $"Queued {tool.Name}. Pending jobs: {PendingInstallTools.Count}"
         Await ProcessInstallQueueAsync()
@@ -623,7 +620,6 @@ Public Class PageFhToolsRight
         Dim tool = GetToolFromSender(sender)
         If tool Is Nothing Then Return
         Dim task = New DownloadTaskViewModel(tool)
-        DownloadTasksSource.Add(task)
         PendingInstallTools.Enqueue(task)
         LabDownloadStatus.Text = $"Queued {tool.Name}. Pending jobs: {PendingInstallTools.Count}"
         Await ProcessInstallQueueAsync()
@@ -643,17 +639,21 @@ Public Class PageFhToolsRight
                 Dim downloadTask = PendingInstallTools.Dequeue()
                 Dim tool = downloadTask.Tool
                 downloadTask.StatusText = FhLanguage.Text("正在下载", "Downloading")
+                DownloadProgressBar.Value = 0
                 Try
                     Dim progress As New Progress(Of ToolDownloadProgress)(Sub(value)
                                                                             downloadTask.UpdateProgress(value)
-                                                                            LabDownloadStatus.Text = $"Installing {tool.Name}: {Math.Round(value.Fraction * 100)}% | Pending: {PendingInstallTools.Count}"
+                                                                            DownloadProgressBar.Value = downloadTask.Percentage
+                                                                            LabDownloadStatus.Text = $"{FhLanguage.Text("正在安装", "Installing")} {tool.Name}：{downloadTask.ProgressText} · {FhLanguage.Text("等待", "Pending")} {PendingInstallTools.Count}"
                                                                         End Sub)
                     Dim installPath = Await InstallService.DownloadAndInstallAsync(tool, progress, Threading.CancellationToken.None)
                     downloadTask.StatusText = FhLanguage.Text("已完成", "Completed")
+                    DownloadProgressBar.Value = 100
                     LabDownloadStatus.Text = $"Installed {tool.Name} to {installPath}"
                     Await RefreshToolsAsync()
                 Catch ex As Exception
                     downloadTask.StatusText = FhLanguage.Text("失败：", "Failed: ") & ex.Message
+                    DownloadProgressBar.Value = 0
                     LabDownloadStatus.Text = $"Install failed for {tool.Name}: {ex.Message}"
                     Hint(ex.Message, HintType.Red)
                 End Try

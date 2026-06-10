@@ -88,25 +88,7 @@
                         <local:MyButton x:Name="BtnImportFolder" Grid.Column="6" Text="添加文件夹" Padding="10,8" />
                     </Grid>
                     <TextBlock x:Name="LabDownloadStatus" Text="当前没有下载任务。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
-                    <ItemsControl x:Name="DownloadTasks">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,5,0,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150" /><ColumnDefinition />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource ColorBrushGray3}" FontSize="12" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <ProgressBar Height="7" Minimum="0" Maximum="100" Value="{Binding Percentage, Mode=OneWay}" />
-                                        <TextBlock Text="{Binding ProgressText}" Foreground="{DynamicResource ColorBrushGray3}" FontSize="12" HorizontalAlignment="Right" Margin="0,4,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ProgressBar x:Name="DownloadProgressBar" Height="8" Minimum="0" Maximum="100" Value="0" />
                 </StackPanel>
             </local:MyCard>
             <ItemsControl x:Name="DownloadToolCards" Visibility="Collapsed" Margin="0,12,0,0">

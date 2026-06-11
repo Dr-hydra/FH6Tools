@@ -125,7 +125,7 @@
                 <StackPanel Margin="20,42,20,18">
                     <TextBlock x:Name="LabAboutDescription" Text="FH6Tools 是用于启动地平线 6 和管理社区工具的本地 Windows 工具中心。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrush2}" Margin="0,0,0,12" />
                     <local:MyListItem x:Name="ItemAboutManifest" Title="工具清单" Info="远程清单可以新增工具，并同步项目地址、名称和中英简介。" IsHitTestVisible="False" Height="54" />
-                    <local:MyListItem x:Name="ItemAboutMigration" Title="v1.2.1 更新说明" Info="微软商店、Xbox 和 Steam 版本统一使用 C:\XboxGames\GameSave\pgs 存档路径。" IsHitTestVisible="False" Height="54" Margin="0,8,0,0" />
+                    <local:MyListItem x:Name="ItemAboutMigration" Title="v1.3.0 更新说明" Info="Xbox 版按各盘符下的 XboxGames\Forza Horizon 6 识别，存档备份仍使用 C:\XboxGames\GameSave\pgs。" IsHitTestVisible="False" Height="54" Margin="0,8,0,0" />
                     <TextBlock x:Name="LabUiCredit" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,8,0,0">
                         <Run Text="本项目的 UI 设计借鉴了 " />
                         <Hyperlink NavigateUri="https://github.com/Meloong-Git/PCL" RequestNavigate="UiCredit_RequestNavigate">Meloong-Git/PCL</Hyperlink>

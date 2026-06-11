@@ -35,7 +35,13 @@ FH6Tools 根据检测到的游戏版本使用固定存档路径：
 
 | 游戏版本 | 存档路径 |
 | --- | --- |
-| Microsoft Store / Xbox / Steam | `C:\XboxGames\GameSave\pgs` |
+| Xbox / Steam | `C:\XboxGames\GameSave\pgs` |
+
+Xbox 版和 Microsoft Store 版统一按 Xbox 版处理。游戏安装目录按实际安装盘符识别，例如：
+
+```text
+D:\XboxGames\Forza Horizon 6
+```
 
 根据反馈所有的版本存档路径是相同的。
 已知简单拷贝本地存档仍会被云端存档覆盖，遇到问题的暂时可以先前往b站寻找解决方案，保留好备份存档。
@@ -92,7 +98,7 @@ QQ 交流群：`851586605`
 
 ## 升级说明
 
-v1.2.1 将 Microsoft Store、Xbox 和 Steam 版本的游戏存档路径统一为 `C:\XboxGames\GameSave\pgs`，并更新当前提供的工具列表。
+v1.3.0 将 Microsoft Store 版本合并为 Xbox 版处理，Xbox 版按各盘符下的 `XboxGames\Forza Horizon 6` 安装目录识别；FH6Tools 现在需要管理员权限启动，并继续使用 `C:\XboxGames\GameSave\pgs` 作为存档备份路径。
 
 ## 数据目录
 

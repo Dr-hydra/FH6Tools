@@ -123,19 +123,14 @@ Public Class ToolRuntimeService
         Dim workingDirectory = If(String.IsNullOrWhiteSpace(endpoint.WorkingDirectory),
                                   Path.GetDirectoryName(executable),
                                   FhPaths.ExpandPath(endpoint.WorkingDirectory, basePath))
+        If Not String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then EnsureSharedRuntimeAvailable()
         Dim info As New ProcessStartInfo With {
             .FileName = executable,
             .WorkingDirectory = workingDirectory,
             .UseShellExecute = False
         }
-        Dim runAsAdministrator = RunAsAdministratorOverrides.ContainsKey(tool.Id) AndAlso RunAsAdministratorOverrides(tool.Id)
-        If runAsAdministrator Then
-            info.UseShellExecute = True
-            info.Verb = "runas"
-        Else
-            ApplySharedRuntimeEnvironment(info)
-            ApplyEnvironment(endpoint, info, basePath)
-        End If
+        ApplySharedRuntimeEnvironment(info)
+        ApplyEnvironment(endpoint, info, basePath)
         For Each argument In endpoint.Arguments
             info.ArgumentList.Add(ApplyPort(argument, port))
         Next
@@ -246,17 +241,38 @@ Public Class ToolRuntimeService
     End Sub
 
     Private Shared Sub ApplySharedRuntimeEnvironment(info As ProcessStartInfo)
-        Dim dotnetRoot = FhPaths.SharedDotNetRoot
-        info.Environment("DOTNET_ROOT") = dotnetRoot
-        info.Environment("DOTNET_ROOT_X64") = dotnetRoot
-        info.Environment("DOTNET_MULTILEVEL_LOOKUP") = "0"
+        For Each pair In BuildSharedRuntimeEnvironment()
+            info.Environment(pair.Key) = pair.Value
+        Next
+    End Sub
 
-        Dim currentPath As String = Nothing
-        If info.Environment.TryGetValue("PATH", currentPath) AndAlso Not String.IsNullOrWhiteSpace(currentPath) Then
-            info.Environment("PATH") = dotnetRoot & Path.PathSeparator & currentPath
+    Private Shared Function BuildSharedRuntimeEnvironment() As Dictionary(Of String, String)
+        Dim dotnetRoot = FhPaths.SharedDotNetRoot
+        Dim result As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+            {"DOTNET_ROOT", dotnetRoot},
+            {"DOTNET_ROOT_X64", dotnetRoot},
+            {"DOTNET_MULTILEVEL_LOOKUP", "0"}
+        }
+
+        Dim currentPath = Environment.GetEnvironmentVariable("PATH")
+        If Not String.IsNullOrWhiteSpace(currentPath) Then
+            result("PATH") = dotnetRoot & Path.PathSeparator & currentPath
         Else
-            info.Environment("PATH") = dotnetRoot
+            result("PATH") = dotnetRoot
         End If
+        Return result
+    End Function
+
+    Private Shared Sub EnsureSharedRuntimeAvailable()
+        Dim dotnetRoot = FhPaths.SharedDotNetRoot
+        Dim requiredPaths = {
+            Path.Combine(dotnetRoot, "dotnet.exe"),
+            Path.Combine(dotnetRoot, "shared", "Microsoft.NETCore.App"),
+            Path.Combine(dotnetRoot, "shared", "Microsoft.WindowsDesktop.App"),
+            Path.Combine(dotnetRoot, "shared", "Microsoft.AspNetCore.App")
+        }
+        If requiredPaths.All(Function(requiredPath) File.Exists(requiredPath) OrElse Directory.Exists(requiredPath)) Then Return
+        Throw New DirectoryNotFoundException($"FH6Tools shared .NET runtime is missing or incomplete: {dotnetRoot}. Please reinstall or update using the win-x64-with-runtime package.")
     End Sub
 
     Private Shared Function NormalizeType(value As String) As String

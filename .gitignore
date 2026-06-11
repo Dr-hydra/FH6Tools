@@ -6,6 +6,7 @@ artifacts/
 # Runtime and application data
 **/FH6ToolsData/
 **/dotnet/
+runtime/
 
 # IDE and user files
 .vs/

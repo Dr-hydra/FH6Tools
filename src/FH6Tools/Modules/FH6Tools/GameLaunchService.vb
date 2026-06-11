@@ -28,10 +28,10 @@ Public Class GameLaunchService
             Return registry
         End If
 
-        Dim microsoftStore = DetectMicrosoftStoreInstall()
-        If microsoftStore.IsInstalled Then
-            microsoftStore.LastLaunchAt = state.LastGameLaunchAt
-            Return microsoftStore
+        Dim xbox = DetectXboxInstall()
+        If xbox.IsInstalled Then
+            xbox.LastLaunchAt = state.LastGameLaunchAt
+            Return xbox
         End If
 
         Return New GameInstallState With {
@@ -126,6 +126,9 @@ Public Class GameLaunchService
                             Dim display = TryCast(app?.GetValue("DisplayName"), String)
                             If String.IsNullOrWhiteSpace(display) OrElse Not display.Contains("Forza Horizon 6", StringComparison.OrdinalIgnoreCase) Then Continue For
                             Dim path = TryCast(app.GetValue("InstallLocation"), String)
+                            If String.IsNullOrWhiteSpace(path) OrElse Not Directory.Exists(path) Then
+                                path = FindXboxInstallPath()
+                            End If
                             Return New GameInstallState With {
                                 .IsInstalled = True,
                                 .Source = "Xbox",
@@ -141,16 +144,29 @@ Public Class GameLaunchService
         Return New GameInstallState
     End Function
 
-    Private Shared Function DetectMicrosoftStoreInstall() As GameInstallState
-        Dim savePath = "C:\XboxGames\GameSave\pgs"
-        If Not Directory.Exists(savePath) Then Return New GameInstallState
+    Private Shared Function DetectXboxInstall() As GameInstallState
+        Dim installPath = FindXboxInstallPath()
+        If String.IsNullOrWhiteSpace(installPath) Then Return New GameInstallState
         Return New GameInstallState With {
             .IsInstalled = True,
-            .Source = "Microsoft Store",
-            .InstallPath = Path.GetDirectoryName(Path.GetDirectoryName(savePath)),
+            .Source = "Xbox",
+            .InstallPath = installPath,
             .LaunchCommand = "xbox://game/?title=Forza%20Horizon%206",
-            .Message = "Shared Xbox game save data detected."
+            .Message = "Xbox game install folder detected."
         }
+    End Function
+
+    Private Shared Function FindXboxInstallPath() As String
+        For Each drive In DriveInfo.GetDrives()
+            Try
+                If drive.DriveType <> DriveType.Fixed OrElse Not drive.IsReady Then Continue For
+                Dim candidate = Path.Combine(drive.RootDirectory.FullName, "XboxGames", "Forza Horizon 6")
+                If Directory.Exists(candidate) Then Return candidate
+            Catch
+                ' Ignore drives that cannot be queried.
+            End Try
+        Next
+        Return ""
     End Function
 
     Private Shared Function IsGameProcessRunning() As Boolean

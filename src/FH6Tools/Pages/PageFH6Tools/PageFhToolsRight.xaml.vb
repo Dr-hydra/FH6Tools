@@ -149,9 +149,9 @@ Public Class PageFhToolsRight
         ItemAboutManifest.Title = FhLanguage.Text("工具清单", "Tool Manifest")
         ItemAboutManifest.Info = FhLanguage.Text("远程清单可以新增工具，并同步项目地址、名称和中英简介。",
                                                  "The remote manifest can add tools and sync project URLs, names, and descriptions.")
-        ItemAboutMigration.Title = FhLanguage.Text("v1.2.1 更新说明", "v1.2.1 Update Notes")
-        ItemAboutMigration.Info = FhLanguage.Text("微软商店、Xbox 和 Steam 版本统一使用 C:\XboxGames\GameSave\pgs 存档路径。",
-                                                  "Microsoft Store, Xbox, and Steam versions use C:\XboxGames\GameSave\pgs.")
+        ItemAboutMigration.Title = FhLanguage.Text("v1.3.0 更新说明", "v1.3.0 Update Notes")
+        ItemAboutMigration.Info = FhLanguage.Text("Xbox 版按各盘符下的 XboxGames\Forza Horizon 6 识别，存档备份仍使用 C:\XboxGames\GameSave\pgs。",
+                                                  "Xbox installs are detected from XboxGames\Forza Horizon 6 on each drive; save backups still use C:\XboxGames\GameSave\pgs.")
         ItemAboutUpdateProtection.Title = FhLanguage.Text("更新数据保护", "Update Data Protection")
         ItemAboutUpdateProtection.Info = FhLanguage.Text("软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。",
                                                           "App updates replace only program files and preserve configuration, save backups, and installed tools.")

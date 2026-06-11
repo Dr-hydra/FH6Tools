@@ -1,6 +1,8 @@
 Imports System.Collections.ObjectModel
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
+Imports System.Text.Json
+Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Win32
 
 Public Class PageFhToolsRight
@@ -23,6 +25,11 @@ Public Class PageFhToolsRight
     Private GameBackupMonitor As Task = Task.CompletedTask
     Private CurrentGameRunning As Boolean
     Private CurrentPage As FhShellPage = FhShellPage.Home
+    Private CurrentGuide As GuidePageConfig = New GuidePageConfig
+    Private GuideWebInitialized As Boolean
+    Private GuideWebInitializing As Boolean
+    Private GuideWebLoadedUrl As String = ""
+    Private Const GuideWebToolbarHeight As Double = 36
 
     Public ReadOnly Property GameSummary As String
         Get
@@ -72,11 +79,13 @@ Public Class PageFhToolsRight
         RadioStartupOff.SetChecked(Not IsStartupEnabled(), False)
         Await RefreshGameOverrideControlsAsync()
         Await LoadToolsFastAsync()
+        Await RefreshGuideAsync()
         Configure(CurrentPage)
         ApplyLanguage()
         Dim gameTask = RefreshGameAsync()
         Dim manifestTask = RefreshManifestAndToolsAsync()
         Await Task.WhenAll(gameTask, manifestTask)
+        Await RefreshGuideAsync()
         StartRuntimeRefresh()
     End Function
 
@@ -92,6 +101,7 @@ Public Class PageFhToolsRight
     Public Sub Configure(page As FhShellPage)
         CurrentPage = page
         PanHome.Visibility = If(page = FhShellPage.Home, Visibility.Visible, Visibility.Collapsed)
+        PanGuide.Visibility = If(page = FhShellPage.Guide, Visibility.Visible, Visibility.Collapsed)
         PanInstalledTools.Visibility = If(page = FhShellPage.Tools, Visibility.Visible, Visibility.Collapsed)
         CardDownloads.Visibility = If(page = FhShellPage.Downloads, Visibility.Visible, Visibility.Collapsed)
         DownloadToolCards.Visibility = CardDownloads.Visibility
@@ -99,6 +109,11 @@ Public Class PageFhToolsRight
         CardGameData.Visibility = If(page = FhShellPage.GameData, Visibility.Visible, Visibility.Collapsed)
         CardAbout.Visibility = If(page = FhShellPage.About, Visibility.Visible, Visibility.Collapsed)
         CardRuntimeInfo.Visibility = If(page = FhShellPage.RuntimeInfo, Visibility.Visible, Visibility.Collapsed)
+        PanBack.VerticalScrollBarVisibility = If(page = FhShellPage.Guide, ScrollBarVisibility.Disabled, ScrollBarVisibility.Auto)
+        UpdateGuideLayout()
+        If page = FhShellPage.Guide Then
+            Dim ignored = EnsureGuideWebAsync()
+        End If
     End Sub
 
     Private Sub StartRuntimeRefresh()
@@ -129,6 +144,7 @@ Public Class PageFhToolsRight
     End Sub
 
     Public Sub ApplyLanguage()
+        LabGuideWebStatus.Text = FhLanguage.Text("Loading guide page...", "Loading guide page...")
         CardDownloads.Title = FhLanguage.Text("下载管理", "Downloads")
         BtnReloadManifest.Text = FhLanguage.Text("检查更新", "Check Updates")
         BtnChangeInstallRoot.Text = FhLanguage.Text("更改安装位置", "Change Install Location")
@@ -241,6 +257,173 @@ Public Class PageFhToolsRight
         Await ManifestService.RefreshDynamicManifestAsync()
         Await RefreshToolsAsync()
     End Function
+
+    Private Async Function RefreshGuideAsync() As Task
+        Try
+            CurrentGuide = Await ManifestService.LoadGuideConfigAsync()
+            GuideWebFrame.Width = CurrentGuide.WebWidth
+            UpdateGuideLayout()
+            ImgGuideSheet.FallbackSource = CurrentGuide.FallbackImageUrl
+            ImgGuideSheet.Source = If(String.IsNullOrWhiteSpace(CurrentGuide.ImageUrl), CurrentGuide.FallbackImageUrl, CurrentGuide.ImageUrl)
+            If CurrentPage = FhShellPage.Guide Then Await EnsureGuideWebAsync()
+        Catch ex As Exception
+            Logger.Warn(ex, "Guide metadata refresh failed.")
+            LabGuideWebStatus.Text = FhLanguage.Text("Guide configuration failed: ", "Guide configuration failed: ") & ex.Message
+            LabGuideWebStatus.Visibility = Visibility.Visible
+        End Try
+    End Function
+
+    Private Async Function EnsureGuideWebAsync() As Task
+        If GuideWebInitializing Then Return
+        If CurrentGuide Is Nothing OrElse Not CurrentGuide.Enabled Then
+            LabGuideWebStatus.Text = FhLanguage.Text("The guide page is not enabled.", "The guide page is not enabled.")
+            LabGuideWebStatus.Visibility = Visibility.Visible
+            Return
+        End If
+        If String.IsNullOrWhiteSpace(CurrentGuide.WebUrl) Then
+            LabGuideWebStatus.Text = FhLanguage.Text("Guide page URL is empty.", "Guide page URL is empty.")
+            LabGuideWebStatus.Visibility = Visibility.Visible
+            Return
+        End If
+
+        GuideWebInitializing = True
+        Try
+            GuideWebFrame.Width = CurrentGuide.WebWidth
+            UpdateGuideLayout()
+            LabGuideWebStatus.Text = FhLanguage.Text("Loading guide page...", "Loading guide page...")
+            LabGuideWebStatus.Visibility = Visibility.Visible
+            If Not GuideWebInitialized Then
+                Dim userDataFolder = Path.Combine(FhPaths.AppDataRoot, "WebView2")
+                Directory.CreateDirectory(userDataFolder)
+                Dim environment = Await CoreWebView2Environment.CreateAsync(Nothing, userDataFolder, Nothing)
+                Await GuideWebView.EnsureCoreWebView2Async(environment)
+                ApplyGuideUserAgent()
+                AddHandler GuideWebView.NavigationCompleted, AddressOf GuideWebView_NavigationCompleted
+                AddHandler GuideWebView.CoreWebView2.HistoryChanged, AddressOf GuideWebView_HistoryChanged
+                GuideWebInitialized = True
+            Else
+                ApplyGuideUserAgent()
+            End If
+            UpdateGuideWebNavigationState()
+            If CurrentGuide.UseMobileEmulation Then
+                Await ApplyGuideMobileEmulationAsync()
+            Else
+                Await ResetGuideMobileEmulationAsync()
+            End If
+            If Not String.Equals(GuideWebLoadedUrl, CurrentGuide.WebUrl, StringComparison.OrdinalIgnoreCase) Then
+                GuideWebLoadedUrl = CurrentGuide.WebUrl
+                GuideWebView.CoreWebView2.Navigate(CurrentGuide.WebUrl)
+            End If
+        Catch ex As WebView2RuntimeNotFoundException
+            LabGuideWebStatus.Text = FhLanguage.Text("WebView2 Runtime is missing. Install Microsoft Edge WebView2 Runtime.", "WebView2 Runtime is missing. Install Microsoft Edge WebView2 Runtime.")
+            LabGuideWebStatus.Visibility = Visibility.Visible
+            Logger.Warn(ex, "WebView2 Runtime is not available.")
+        Catch ex As Exception
+            LabGuideWebStatus.Text = FhLanguage.Text("Guide page failed to load: ", "Guide page failed to load: ") & ex.Message
+            LabGuideWebStatus.Visibility = Visibility.Visible
+            Logger.Warn(ex, "Guide web view failed to initialize.")
+        Finally
+            GuideWebInitializing = False
+        End Try
+    End Function
+
+    Private Async Function ApplyGuideMobileEmulationAsync() As Task
+        If GuideWebView.CoreWebView2 Is Nothing Then Return
+        Dim height = Math.Max(640, CInt(If(GuideWebView.ActualHeight > 0, GuideWebView.ActualHeight, 844)))
+        Dim metrics = JsonSerializer.Serialize(New Dictionary(Of String, Object) From {
+            {"width", CurrentGuide.WebWidth},
+            {"height", height},
+            {"deviceScaleFactor", 3},
+            {"mobile", True}
+        })
+        Await GuideWebView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setDeviceMetricsOverride", metrics)
+        Dim touch = JsonSerializer.Serialize(New Dictionary(Of String, Object) From {
+            {"enabled", True},
+            {"configuration", "mobile"}
+        })
+        Await GuideWebView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setTouchEmulationEnabled", touch)
+    End Function
+
+    Private Async Function ResetGuideMobileEmulationAsync() As Task
+        If GuideWebView.CoreWebView2 Is Nothing Then Return
+        Try
+            Await GuideWebView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.clearDeviceMetricsOverride", "{}")
+            Await GuideWebView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setTouchEmulationEnabled", "{""enabled"":false}")
+        Catch ex As Exception
+            Logger.Warn(ex, "Guide web mobile emulation could not be reset.")
+        End Try
+    End Function
+
+    Private Sub ApplyGuideUserAgent()
+        If GuideWebView.CoreWebView2 Is Nothing OrElse String.IsNullOrWhiteSpace(CurrentGuide.UserAgent) Then Return
+        GuideWebView.CoreWebView2.Settings.UserAgent = CurrentGuide.UserAgent
+    End Sub
+
+    Private Sub GuideWebView_NavigationCompleted(sender As Object, e As CoreWebView2NavigationCompletedEventArgs)
+        If e.IsSuccess Then
+            LabGuideWebStatus.Visibility = Visibility.Collapsed
+        Else
+            LabGuideWebStatus.Text = FhLanguage.Text("Guide page failed to load.", "Guide page failed to load.")
+            LabGuideWebStatus.Visibility = Visibility.Visible
+        End If
+        UpdateGuideWebNavigationState()
+    End Sub
+
+    Private Sub GuideWebView_HistoryChanged(sender As Object, e As Object)
+        UpdateGuideWebNavigationState()
+    End Sub
+
+    Private Sub GuideLayout_SizeChanged(sender As Object, e As SizeChangedEventArgs)
+        UpdateGuideLayout()
+    End Sub
+
+    Private Sub GuideWebFrame_SizeChanged(sender As Object, e As SizeChangedEventArgs)
+        UpdateGuideLayout()
+    End Sub
+
+    Private Sub UpdateGuideLayout()
+        If PanBack Is Nothing OrElse PanRightContent Is Nothing OrElse PanGuide Is Nothing Then Return
+        Dim verticalMargin = PanRightContent.Margin.Top + PanRightContent.Margin.Bottom
+        PanGuide.Height = Math.Max(0, PanBack.ActualHeight - verticalMargin)
+        UpdateGuideWebViewHeight()
+    End Sub
+
+    Private Sub UpdateGuideWebViewHeight()
+        If GuideWebFrame Is Nothing OrElse GuideWebView Is Nothing Then Return
+        GuideWebView.Height = Math.Max(0, GuideWebFrame.ActualHeight - GuideWebToolbarHeight - GuideWebFrame.BorderThickness.Top - GuideWebFrame.BorderThickness.Bottom)
+    End Sub
+
+    Private Sub UpdateGuideWebNavigationState()
+        Dim core = GuideWebView.CoreWebView2
+        BtnGuideWebBack.IsEnabled = core IsNot Nothing AndAlso core.CanGoBack
+        BtnGuideWebForward.IsEnabled = core IsNot Nothing AndAlso core.CanGoForward
+        BtnGuideWebRefresh.IsEnabled = core IsNot Nothing
+        BtnGuideWebHome.IsEnabled = core IsNot Nothing AndAlso CurrentGuide IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(CurrentGuide.WebUrl)
+        BtnGuideWebOpenExternal.IsEnabled = BtnGuideWebHome.IsEnabled
+    End Sub
+
+    Private Sub BtnGuideWebBack_Click(sender As Object, e As EventArgs)
+        If GuideWebView.CoreWebView2 IsNot Nothing AndAlso GuideWebView.CoreWebView2.CanGoBack Then GuideWebView.CoreWebView2.GoBack()
+    End Sub
+
+    Private Sub BtnGuideWebForward_Click(sender As Object, e As EventArgs)
+        If GuideWebView.CoreWebView2 IsNot Nothing AndAlso GuideWebView.CoreWebView2.CanGoForward Then GuideWebView.CoreWebView2.GoForward()
+    End Sub
+
+    Private Sub BtnGuideWebRefresh_Click(sender As Object, e As EventArgs)
+        GuideWebView.CoreWebView2?.Reload()
+    End Sub
+
+    Private Sub BtnGuideWebHome_Click(sender As Object, e As EventArgs)
+        If GuideWebView.CoreWebView2 Is Nothing OrElse CurrentGuide Is Nothing OrElse String.IsNullOrWhiteSpace(CurrentGuide.WebUrl) Then Return
+        GuideWebView.CoreWebView2.Navigate(CurrentGuide.WebUrl)
+    End Sub
+
+    Private Sub BtnGuideWebOpenExternal_Click(sender As Object, e As EventArgs)
+        Dim target = If(GuideWebView.Source?.AbsoluteUri, If(CurrentGuide Is Nothing, "", CurrentGuide.WebUrl))
+        If String.IsNullOrWhiteSpace(target) Then Return
+        Process.Start(New ProcessStartInfo With {.FileName = target, .UseShellExecute = True})
+    End Sub
 
     Private Function GetToolFromSender(sender As Object) As ToolManifestEntry
         Dim element = TryCast(sender, FrameworkElement)

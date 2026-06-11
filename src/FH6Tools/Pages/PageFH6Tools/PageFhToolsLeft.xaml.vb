@@ -4,9 +4,9 @@ Public Class PageFhToolsLeft
 
     Public Sub Configure(page As FhShellPage)
         CurrentPage = page
-        Width = If(page = FhShellPage.Home, 190, 150)
+        Width = If(page = FhShellPage.Home, 190, If(page = FhShellPage.Guide, 0, 150))
         PanLauncher.Visibility = If(page = FhShellPage.Home, Visibility.Visible, Visibility.Collapsed)
-        PanNavigation.Visibility = If(page = FhShellPage.Home, Visibility.Collapsed, Visibility.Visible)
+        PanNavigation.Visibility = If(page = FhShellPage.Home OrElse page = FhShellPage.Guide, Visibility.Collapsed, Visibility.Visible)
         ItemTools.Visibility = If(page = FhShellPage.Tools OrElse page = FhShellPage.Downloads, Visibility.Visible, Visibility.Collapsed)
         ItemDownloads.Visibility = ItemTools.Visibility
         ItemConfig.Visibility = If(page = FhShellPage.Config OrElse page = FhShellPage.GameData, Visibility.Visible, Visibility.Collapsed)

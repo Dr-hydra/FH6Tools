@@ -6,6 +6,7 @@ Public Enum FhShellPage
     About = 4
     GameData = 5
     RuntimeInfo = 6
+    Guide = 7
 End Enum
 
 Public Class FhShellHost
@@ -16,6 +17,8 @@ End Class
 Public Module FhShellText
     Public Function GetPageTitle(page As FhShellPage) As String
         Select Case page
+            Case FhShellPage.Guide
+                Return FhLanguage.Text("攻略", "Guide")
             Case FhShellPage.Tools
                 Return FhLanguage.Text("工具", "Tools")
             Case FhShellPage.Downloads
@@ -35,6 +38,8 @@ Public Module FhShellText
 
     Public Function GetPageSubtitle(page As FhShellPage) As String
         Select Case page
+            Case FhShellPage.Guide
+                Return FhLanguage.Text("查看每周季节赛调校图流与社区攻略。", "View the weekly season tune sheet and community guide.")
             Case FhShellPage.Tools
                 Return FhLanguage.Text("管理精选与本地 Mod 工具。", "Manage curated and local mod tools.")
             Case FhShellPage.Downloads

@@ -53,6 +53,7 @@ Public Class ToolManifestService
                 Dim json = Await ManifestClient.GetStringAsync(source)
                 Dim metadata = JsonSerializer.Deserialize(Of ToolMetadataManifest)(json, JsonOptions)
                 If metadata IsNot Nothing AndAlso metadata.Tools IsNot Nothing Then
+                    metadata.Guide = NormalizeGuideConfig(metadata.Guide)
                     metadata.Tools = metadata.Tools.Where(Function(tool) IsValidRemoteMetadata(tool)).ToList()
                     Await File.WriteAllTextAsync(FhPaths.MetadataPath, JsonSerializer.Serialize(metadata, JsonOptions))
                     refreshed = True
@@ -62,6 +63,11 @@ Public Class ToolManifestService
             End Try
         End If
         Return Await RefreshReleaseMetadataAsync() OrElse refreshed
+    End Function
+
+    Public Async Function LoadGuideConfigAsync() As Task(Of GuidePageConfig)
+        FhPaths.Ensure()
+        Return NormalizeGuideConfig((Await LoadMetadataAsync()).Guide)
     End Function
 
     Private Async Function RefreshReleaseMetadataAsync() As Task(Of Boolean)
@@ -247,6 +253,25 @@ Public Class ToolManifestService
     Private Shared Function IsValidRemoteMetadata(item As ToolMetadataEntry) As Boolean
         If item Is Nothing OrElse Not Regex.IsMatch(If(item.Id, ""), "^[a-z0-9][a-z0-9._-]{0,63}$", RegexOptions.IgnoreCase) Then Return False
         Return Regex.IsMatch(If(item.Homepage, ""), "^https://github\.com/[^/]+/[^/#?]+/?$", RegexOptions.IgnoreCase)
+    End Function
+
+    Private Shared Function NormalizeGuideConfig(config As GuidePageConfig) As GuidePageConfig
+        Dim result = If(config, New GuidePageConfig)
+        If String.IsNullOrWhiteSpace(result.Title) Then result.Title = "季节赛攻略"
+        If String.IsNullOrWhiteSpace(result.TitleEn) Then result.TitleEn = "Season Guide"
+        If Not IsHttpUrl(result.WebUrl) Then result.WebUrl = (New GuidePageConfig).WebUrl
+        If Not String.IsNullOrWhiteSpace(result.ImageUrl) AndAlso Not IsHttpUrl(result.ImageUrl) Then result.ImageUrl = ""
+        If String.IsNullOrWhiteSpace(result.FallbackImageUrl) Then result.FallbackImageUrl = (New GuidePageConfig).FallbackImageUrl
+        If String.IsNullOrWhiteSpace(result.UserAgent) Then result.UserAgent = (New GuidePageConfig).UserAgent
+        result.WebWidth = Math.Max(320, Math.Min(520, result.WebWidth))
+        Return result
+    End Function
+
+    Private Shared Function IsHttpUrl(value As String) As Boolean
+        Dim uri As Uri = Nothing
+        Return Uri.TryCreate(value, UriKind.Absolute, uri) AndAlso
+               (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) OrElse
+                uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
     End Function
 
     Private Async Function EnsureManifestAsync() As Task

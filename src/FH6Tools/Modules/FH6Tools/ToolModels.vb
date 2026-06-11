@@ -9,7 +9,22 @@ End Class
 Public Class ToolMetadataManifest
     Public Property SchemaVersion As Integer = 1
     Public Property UpdatedAt As String = ""
+    Public Property Guide As GuidePageConfig = New GuidePageConfig
     Public Property Tools As List(Of ToolMetadataEntry) = New List(Of ToolMetadataEntry)
+End Class
+
+Public Class GuidePageConfig
+    Public Property Enabled As Boolean = True
+    Public Property Title As String = "季节赛攻略"
+    Public Property TitleEn As String = "Season Guide"
+    Public Property UpdatedAt As String = ""
+    Public Property ImageUrl As String = ""
+    Public Property FallbackImageUrl As String = "pack://application:,,,/FH6Tools;component/Images/Guide/weekly-guide-2026-06-04.png"
+    Public Property WebUrl As String = "https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?h_camp=link&h_src=YXBwX3NoYXJl&link_id=a9f471f95020"
+    Public Property UserAgent As String = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+    Public Property UseMobileEmulation As Boolean = True
+    Public Property HideBottomChrome As Boolean
+    Public Property WebWidth As Integer = 390
 End Class
 
 Public Class ToolMetadataEntry

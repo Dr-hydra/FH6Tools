@@ -2,9 +2,10 @@
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:local="clr-namespace:FH6Tools"
+                   xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
                    PanScroll="PanBack">
-    <local:MyScrollViewer x:Name="PanBack" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="28,24,28,14">
+    <local:MyScrollViewer x:Name="PanBack" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" SizeChanged="GuideLayout_SizeChanged">
+        <StackPanel x:Name="PanRightContent" Margin="28,24,28,14">
             <StackPanel x:Name="PanHome">
                 <TextBlock x:Name="LabInstalledToolSummary" Text="正在加载已安装工具..." Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,12" />
                 <ItemsControl x:Name="InstalledToolCards">
@@ -28,6 +29,38 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </StackPanel>
+
+            <Grid x:Name="PanGuide" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition MinWidth="300" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" ClipToBounds="True" Background="#F7000000" CornerRadius="6">
+                    <local:MyScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <local:MyImage x:Name="ImgGuideSheet" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </local:MyScrollViewer>
+                </Border>
+                <Border Grid.Column="2" x:Name="GuideWebFrame" Width="390" MinWidth="320" MaxWidth="520" ClipToBounds="True" Background="White" CornerRadius="6" BorderBrush="{DynamicResource ColorBrush1}" BorderThickness="1" SizeChanged="GuideWebFrame_SizeChanged">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="36" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <Border Background="#F9FFFFFF" BorderBrush="{DynamicResource ColorBrush1}" BorderThickness="0,0,0,1">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <local:MyIconButton x:Name="BtnGuideWebBack" ToolTip="返回" Width="27" Height="27" Margin="0,0,8,0" LogoScale="0.78" Logo="M704 192 384 512l320 320-96 96L192 512 608 96z" Click="BtnGuideWebBack_Click" />
+                                <local:MyIconButton x:Name="BtnGuideWebForward" ToolTip="前进" Width="27" Height="27" Margin="0,0,8,0" LogoScale="0.78" Logo="M320 192 640 512 320 832l96 96L832 512 416 96z" Click="BtnGuideWebForward_Click" />
+                                <local:MyIconButton x:Name="BtnGuideWebRefresh" ToolTip="刷新" Width="27" Height="27" Margin="0,0,8,0" LogoScale="0.78" Logo="M832 256v224H608l84-84A256 256 0 1 0 768 576h128a384 384 0 1 1-112-272L832 256z" Click="BtnGuideWebRefresh_Click" />
+                                <local:MyIconButton x:Name="BtnGuideWebHome" ToolTip="回到攻略链接" Width="27" Height="27" Margin="0,0,8,0" LogoScale="0.78" Logo="M512 128 128 448h96v384h224V608h128v224h224V448h96z" Click="BtnGuideWebHome_Click" />
+                                <local:MyIconButton x:Name="BtnGuideWebOpenExternal" ToolTip="在浏览器打开" Width="27" Height="27" LogoScale="0.78" Logo="M192 192h320v96H288v448h448V512h96v320H192zM608 128h288v288h-96V292L480 612l-68-68 320-320H608z" Click="BtnGuideWebOpenExternal_Click" />
+                            </StackPanel>
+                        </Border>
+                        <wv2:WebView2 Grid.Row="1" x:Name="GuideWebView" DefaultBackgroundColor="White" />
+                        <TextBlock Grid.Row="1" x:Name="LabGuideWebStatus" Text="正在加载攻略网页..." TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource ColorBrushGray3}" Margin="18" />
+                    </Grid>
+                </Border>
+            </Grid>
 
             <StackPanel x:Name="PanInstalledTools" Visibility="Collapsed">
                 <TextBlock x:Name="LabConfigToolSummary" Text="正在加载已安装工具..." Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,12" />

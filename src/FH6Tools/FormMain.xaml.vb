@@ -158,7 +158,7 @@ Public Class FormMain
         If WindowState = WindowState.Maximized Then WindowState = WindowState.Normal
     End Sub
 
-    Private Sub BtnTitleSelect_Click(sender As MyRadioButton, raiseByMouse As Boolean) Handles BtnTitleSelect0.Check, BtnTitleSelect1.Check, BtnTitleSelect2.Check, BtnTitleSelect3.Check
+    Private Sub BtnTitleSelect_Click(sender As MyRadioButton, raiseByMouse As Boolean) Handles BtnTitleSelect0.Check, BtnTitleSelectGuide.Check, BtnTitleSelect1.Check, BtnTitleSelect2.Check, BtnTitleSelect3.Check
         PageChange(CType(Val(sender.Tag), FhShellPage))
     End Sub
 
@@ -229,6 +229,7 @@ Public Class FormMain
     End Function
 
     Public Sub ApplyLanguage()
+        BtnTitleSelectGuide.Text = FhLanguage.Text("攻略", "Guide")
         BtnTitleSelect0.Text = FhLanguage.Text("启动台", "Launcher")
         BtnTitleSelect1.Text = FhLanguage.Text("工具", "Tools")
         BtnTitleSelect2.Text = FhLanguage.Text("设置", "Settings")

@@ -105,9 +105,19 @@
 
             <local:MyCard x:Name="CardGameData" Title="游戏与数据" Visibility="Collapsed">
                 <StackPanel Margin="20,42,20,18">
+                    <TextBlock x:Name="LabGameVersionTitle" Text="游戏版本" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock x:Name="LabGameVersionHint" Text="自动检测失败时，可以手动指定已安装版本。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <local:MyRadioBox x:Name="RadioGameAuto" Text="自动检测" Tag="Auto" Checked="True" Margin="0,0,18,0" />
+                        <local:MyRadioBox x:Name="RadioGameXbox" Text="Xbox" Tag="Xbox" Margin="0,0,18,0" />
+                        <local:MyRadioBox x:Name="RadioGameSteam" Text="Steam" Tag="Steam" />
+                    </StackPanel>
+                    <TextBlock x:Name="LabManualGamePath" Text="手动路径：未设置" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,10" />
                     <TextBlock x:Name="LabGameDetectionStatus" Text="正在检测游戏..." Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" Margin="0,0,0,14" />
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="8" />
                             <ColumnDefinition />
                             <ColumnDefinition Width="8" />
                             <ColumnDefinition />
@@ -117,6 +127,7 @@
                         <local:MyButton x:Name="BtnBindGame" Text="指定游戏路径" Padding="12,8" />
                         <local:MyButton x:Name="BtnRefreshGame" Grid.Column="2" Text="重新检测游戏" Padding="12,8" />
                         <local:MyButton x:Name="BtnOpenGameFolder" Grid.Column="4" Text="打开游戏目录" Padding="12,8" />
+                        <local:MyButton x:Name="BtnClearGameOverride" Grid.Column="6" Text="清除手动设置" Padding="12,8" />
                     </Grid>
                 </StackPanel>
             </local:MyCard>

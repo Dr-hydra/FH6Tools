@@ -95,6 +95,7 @@ End Class
 Public Class ToolStateStore
     Public Property Tools As List(Of ToolInstallState) = New List(Of ToolInstallState)
     Public Property GamePath As String = ""
+    Public Property GameSourceOverride As String = ""
     Public Property LastGameLaunchAt As String = ""
 End Class
 

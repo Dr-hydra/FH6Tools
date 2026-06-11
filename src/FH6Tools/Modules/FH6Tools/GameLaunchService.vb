@@ -2,13 +2,21 @@ Imports Microsoft.Win32
 
 Public Class GameLaunchService
     Private ReadOnly ManifestService As New ToolManifestService
+    Public Const GameSourceAuto As String = "Auto"
+    Public Const GameSourceSteam As String = "Steam"
+    Public Const GameSourceXbox As String = "Xbox"
+    Public Const GameSourceManual As String = "Manual"
 
     Public Async Function DetectAsync() As Task(Of GameInstallState)
         Dim state = Await ManifestService.LoadStateAsync()
-        If Not String.IsNullOrWhiteSpace(state.GamePath) AndAlso File.Exists(state.GamePath) Then
+        Dim overrideSource = NormalizeGameSource(state.GameSourceOverride)
+        If Not String.Equals(overrideSource, GameSourceAuto, StringComparison.OrdinalIgnoreCase) Then
+            Dim manual = DetectManualOverride(state)
+            If manual.IsInstalled Then Return manual
+        ElseIf Not String.IsNullOrWhiteSpace(state.GamePath) AndAlso File.Exists(state.GamePath) Then
             Return New GameInstallState With {
                 .IsInstalled = True,
-                .Source = "Manual",
+                .Source = GameSourceManual,
                 .InstallPath = state.GamePath,
                 .LaunchCommand = state.GamePath,
                 .LastLaunchAt = state.LastGameLaunchAt,
@@ -40,9 +48,23 @@ Public Class GameLaunchService
         }
     End Function
 
-    Public Async Function BindManualPathAsync(path As String) As Task
+    Public Async Function BindManualPathAsync(path As String, Optional source As String = "") As Task
         Dim state = Await ManifestService.LoadStateAsync()
         state.GamePath = path
+        If Not String.IsNullOrWhiteSpace(source) Then state.GameSourceOverride = NormalizeGameSource(source)
+        Await ManifestService.SaveStateAsync(state)
+    End Function
+
+    Public Async Function SetManualSourceAsync(source As String) As Task
+        Dim state = Await ManifestService.LoadStateAsync()
+        state.GameSourceOverride = NormalizeGameSource(source)
+        Await ManifestService.SaveStateAsync(state)
+    End Function
+
+    Public Async Function ClearManualOverrideAsync() As Task
+        Dim state = Await ManifestService.LoadStateAsync()
+        state.GamePath = ""
+        state.GameSourceOverride = GameSourceAuto
         Await ManifestService.SaveStateAsync(state)
     End Function
 
@@ -113,6 +135,52 @@ Public Class GameLaunchService
             End If
         Next
 
+        Return New GameInstallState
+    End Function
+
+    Private Shared Function DetectManualOverride(state As ToolStateStore) As GameInstallState
+        Dim source = NormalizeGameSource(state.GameSourceOverride)
+        Select Case source
+            Case GameSourceSteam
+                If Not String.IsNullOrWhiteSpace(state.GamePath) AndAlso File.Exists(state.GamePath) Then
+                    Return New GameInstallState With {
+                        .IsInstalled = True,
+                        .Source = GameSourceSteam,
+                        .InstallPath = state.GamePath,
+                        .LaunchCommand = state.GamePath,
+                        .LastLaunchAt = state.LastGameLaunchAt,
+                        .Message = "Steam version selected manually."
+                    }
+                End If
+                Return New GameInstallState With {
+                    .IsInstalled = False,
+                    .Source = GameSourceSteam,
+                    .InstallPath = state.GamePath,
+                    .LastLaunchAt = state.LastGameLaunchAt,
+                    .Message = "Steam version selected manually; bind the executable or let automatic Steam detection find the app manifest."
+                }
+            Case GameSourceXbox
+                Dim installPath = If(String.IsNullOrWhiteSpace(state.GamePath), FindXboxInstallPath(), state.GamePath)
+                Return New GameInstallState With {
+                    .IsInstalled = True,
+                    .Source = GameSourceXbox,
+                    .InstallPath = installPath,
+                    .LaunchCommand = "xbox://game/?title=Forza%20Horizon%206",
+                    .LastLaunchAt = state.LastGameLaunchAt,
+                    .Message = "Xbox version selected manually."
+                }
+            Case GameSourceManual
+                If Not String.IsNullOrWhiteSpace(state.GamePath) AndAlso (File.Exists(state.GamePath) OrElse Directory.Exists(state.GamePath)) Then
+                    Return New GameInstallState With {
+                        .IsInstalled = True,
+                        .Source = GameSourceManual,
+                        .InstallPath = state.GamePath,
+                        .LaunchCommand = state.GamePath,
+                        .LastLaunchAt = state.LastGameLaunchAt,
+                        .Message = "Manual game path is configured."
+                    }
+                End If
+        End Select
         Return New GameInstallState
     End Function
 
@@ -195,5 +263,18 @@ Public Class GameLaunchService
         Catch
             Return ""
         End Try
+    End Function
+
+    Public Shared Function NormalizeGameSource(value As String) As String
+        Select Case If(value, "").Trim().ToLowerInvariant()
+            Case "steam"
+                Return GameSourceSteam
+            Case "xbox", "store", "microsoft store", "microsoftstore"
+                Return GameSourceXbox
+            Case "manual"
+                Return GameSourceManual
+            Case Else
+                Return GameSourceAuto
+        End Select
     End Function
 End Class

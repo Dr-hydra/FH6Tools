@@ -98,6 +98,8 @@ QQ 交流群：`851586605`
 
 ## 升级说明
 
+v1.3.1 在“游戏与数据”设置中新增手动版本兜底，自动检测失败时可以手动选择 Xbox 或 Steam，并可绑定已安装路径。
+
 v1.3.0 将 Microsoft Store 版本合并为 Xbox 版处理，Xbox 版按各盘符下的 `XboxGames\Forza Horizon 6` 安装目录识别；FH6Tools 现在需要管理员权限启动，并继续使用 `C:\XboxGames\GameSave\pgs` 作为存档备份路径。
 
 ## 数据目录

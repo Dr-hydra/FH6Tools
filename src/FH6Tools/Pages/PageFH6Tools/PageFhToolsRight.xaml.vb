@@ -70,6 +70,7 @@ Public Class PageFhToolsRight
         RadioLanguageEn.SetChecked(FhLanguage.IsEnglish, False)
         RadioStartupOn.SetChecked(IsStartupEnabled(), False)
         RadioStartupOff.SetChecked(Not IsStartupEnabled(), False)
+        Await RefreshGameOverrideControlsAsync()
         Await LoadToolsFastAsync()
         Configure(CurrentPage)
         ApplyLanguage()
@@ -135,11 +136,17 @@ Public Class PageFhToolsRight
         BtnImportFolder.Text = FhLanguage.Text("添加文件夹", "Add Folder")
         CardConfig.Title = FhLanguage.Text("常规设置", "General Settings")
         CardGameData.Title = FhLanguage.Text("游戏与数据", "Game and Data")
+        LabGameVersionTitle.Text = FhLanguage.Text("游戏版本", "Game Version")
+        LabGameVersionHint.Text = FhLanguage.Text("自动检测失败时，可以手动指定已安装版本。", "If automatic detection fails, select the installed version manually.")
+        RadioGameAuto.Text = FhLanguage.Text("自动检测", "Auto")
+        RadioGameXbox.Text = "Xbox"
+        RadioGameSteam.Text = "Steam"
         LabLanguageTitle.Text = FhLanguage.Text("界面语言", "Interface Language")
         LabLanguageHint.Text = FhLanguage.Text("默认使用简体中文，切换后立即生效。", "Simplified Chinese is the default. Changes apply immediately.")
         BtnBindGame.Text = FhLanguage.Text("绑定游戏路径", "Bind Game Path")
         BtnRefreshGame.Text = FhLanguage.Text("重新检测游戏", "Detect Game Again")
         BtnOpenGameFolder.Text = FhLanguage.Text("打开游戏目录", "Open Game Folder")
+        BtnClearGameOverride.Text = FhLanguage.Text("清除手动设置", "Clear Manual Settings")
         BtnOpenDataRoot.Text = FhLanguage.Text("打开数据目录", "Open Data Folder")
         CardAbout.Title = FhLanguage.Text("关于 FH6Tools", "About FH6Tools")
         CardRuntimeInfo.Title = FhLanguage.Text("运行时与安全", "Runtime and Safety")
@@ -173,11 +180,23 @@ Public Class PageFhToolsRight
         CurrentGame = Await GameService.DetectAsync()
         CurrentGameRunning = Await Task.Run(Function() GameService.IsGameRunning())
         BtnOpenGameFolder.IsEnabled = CurrentGame.IsInstalled AndAlso Not String.IsNullOrWhiteSpace(CurrentGame.InstallPath)
+        Await RefreshGameOverrideControlsAsync()
         LabGameDetectionStatus.Text = If(CurrentGame.IsInstalled,
                                          FhLanguage.Text($"已检测到 {CurrentGame.Source} 版本", $"Detected {CurrentGame.Source} version"),
                                          FhLanguage.Text("未检测到游戏", "Game not detected"))
         Configure(CurrentPage)
         FrmMain?.UpdateShellStatus(GameSummary, ToolsSummary)
+    End Function
+
+    Private Async Function RefreshGameOverrideControlsAsync() As Task
+        CurrentState = Await ManifestService.LoadStateAsync()
+        Dim source = GameLaunchService.NormalizeGameSource(CurrentState.GameSourceOverride)
+        RadioGameAuto.SetChecked(String.Equals(source, GameLaunchService.GameSourceAuto, StringComparison.OrdinalIgnoreCase) OrElse
+                                 String.Equals(source, GameLaunchService.GameSourceManual, StringComparison.OrdinalIgnoreCase), False)
+        RadioGameXbox.SetChecked(String.Equals(source, GameLaunchService.GameSourceXbox, StringComparison.OrdinalIgnoreCase), False)
+        RadioGameSteam.SetChecked(String.Equals(source, GameLaunchService.GameSourceSteam, StringComparison.OrdinalIgnoreCase), False)
+        Dim pathText = If(String.IsNullOrWhiteSpace(CurrentState.GamePath), FhLanguage.Text("未设置", "Not set"), CurrentState.GamePath)
+        LabManualGamePath.Text = FhLanguage.Text("手动路径：", "Manual path: ") & pathText
     End Function
 
     Private Async Function RefreshToolsAsync() As Task
@@ -393,12 +412,36 @@ Public Class PageFhToolsRight
         Await ManifestService.SaveStateAsync(CurrentState)
     End Sub
 
+    Private Async Sub RadioGameSource_Check(sender As Object, e As RouteEventArgs) Handles RadioGameAuto.Check, RadioGameXbox.Check, RadioGameSteam.Check
+        If Not IsLoaded OrElse Not e.RaiseByMouse Then Return
+        Dim radio = TryCast(sender, FrameworkElement)
+        Await GameService.SetManualSourceAsync(CStr(radio?.Tag))
+        Await RefreshGameAsync()
+    End Sub
+
     Private Async Sub BtnBindGame_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnBindGame.Click
-        Dim dialog As New OpenFileDialog With {.Filter = "Executable (*.exe)|*.exe|All files (*.*)|*.*", .Title = "Bind FH6 executable"}
-        If dialog.ShowDialog() Then
-            Await GameService.BindManualPathAsync(dialog.FileName)
-            Await RefreshGameAsync()
+        CurrentState = Await ManifestService.LoadStateAsync()
+        Dim source = GameLaunchService.NormalizeGameSource(CurrentState.GameSourceOverride)
+        If String.Equals(source, GameLaunchService.GameSourceXbox, StringComparison.OrdinalIgnoreCase) Then
+            Dim initialDirectory = If(Directory.Exists(CurrentState.GamePath), CurrentState.GamePath, "C:\XboxGames")
+            Dim dialog As New OpenFolderDialog With {.Title = FhLanguage.Text("选择 Xbox 版游戏目录", "Choose Xbox game folder"), .InitialDirectory = initialDirectory}
+            If dialog.ShowDialog() Then
+                Await GameService.BindManualPathAsync(dialog.FolderName, GameLaunchService.GameSourceXbox)
+                Await RefreshGameAsync()
+            End If
+        Else
+            Dim dialog As New OpenFileDialog With {.Filter = "Executable (*.exe)|*.exe|All files (*.*)|*.*", .Title = FhLanguage.Text("绑定 FH6 可执行文件", "Bind FH6 executable")}
+            If dialog.ShowDialog() Then
+                Dim targetSource = If(String.Equals(source, GameLaunchService.GameSourceAuto, StringComparison.OrdinalIgnoreCase), GameLaunchService.GameSourceAuto, source)
+                Await GameService.BindManualPathAsync(dialog.FileName, targetSource)
+                Await RefreshGameAsync()
+            End If
         End If
+    End Sub
+
+    Private Async Sub BtnClearGameOverride_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnClearGameOverride.Click
+        Await GameService.ClearManualOverrideAsync()
+        Await RefreshGameAsync()
     End Sub
 
     Private Async Sub BtnRefreshGame_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnRefreshGame.Click

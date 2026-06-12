@@ -493,7 +493,10 @@ Public Class PageFhToolsRight
                 If portConflict IsNot Nothing Then Await ResolvePortConflictAsync(portConflict.Tool, portConflict.Port)
             Next
             Try
-                Await GameBackupService.BackupAsync(CurrentGame, "before-launch")
+                Dim backupPath = Await GameBackupService.BackupAsync(CurrentGame, "before-launch")
+                If String.IsNullOrWhiteSpace(backupPath) Then
+                    Throw New DirectoryNotFoundException(GameBackupService.GetSavePath(CurrentGame))
+                End If
             Catch ex As Exception
                 Logger.Warn(ex, "Pre-launch game save backup failed.")
                 Hint(FhLanguage.Text("启动前存档备份失败，游戏仍会继续启动：", "Pre-launch save backup failed; the game will still launch: ") & ex.Message, HintType.Red)

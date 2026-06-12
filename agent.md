@@ -44,6 +44,7 @@ FH6Tools is a Windows desktop community tool launcher and control center for For
 - The Home right pane only shows installed tools. Each installed-tool card is compact and vertically stacks the tool name, health state, start, stop, config, and health-check actions. The Tools page remains the full catalog and management surface.
 - All shell sections reuse one `PageFhToolsRight` instance. Title/left navigation must switch that instance's internal content directly; do not run the full page detach/exit/enter animation state machine when the target is already hosted.
 - Keep future UI work aligned with the new QING.UIKIT demo shell instead of restoring the older flat `FormMain` dashboard.
+- The title bar includes a Guide page after Launcher. Guide content is driven by the remote `tool-metadata.json` `guide` object: left image URL/fallback image and right mobile WebView2 URL can be updated weekly without changing the app binary.
 
 ## Tool Runtime Model
 Supported tool types:

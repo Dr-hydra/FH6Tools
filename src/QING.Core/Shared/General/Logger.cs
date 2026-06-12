@@ -298,6 +298,7 @@ public class FileLogger : BaseLogger, IDisposable {
 
     /// <inheritdoc/>
     public override void Init() {
+        Directory.CreateDirectory(logFolder);
         // 轮转日志文件，将 Log1.txt 留空
         Logger.Info("开始轮转日志文件");
         try {

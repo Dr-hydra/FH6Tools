@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Reflection;
 using System.Text;
 using FH6Tools;
 
@@ -18,6 +19,8 @@ var tests = new List<(string Name, Func<Task> Run)>
 {
     ("language-default-persistence", TestLanguagePersistence),
     ("manifest-local-tools", TestManifestAndLocalTools),
+    ("game-save-copy", TestGameSaveCopy),
+    ("xbox-game-process-match", TestXboxGameProcessMatch),
     ("download-resume-sha-cancel", TestDownloadResumeShaAndCancel),
     ("zip-exe-msi-install-config-snapshot", TestZipInstallAndConfigSnapshots),
     ("runtime-single-backend-frontend-port", TestRuntimeAndPorts),
@@ -95,13 +98,48 @@ async Task TestManifestAndLocalTools()
     }
     """;
     await File.WriteAllTextAsync(FhPaths.ManifestPath, manifestJson);
-
     var service = new ToolManifestService();
     await service.AddLocalToolAsync(localExe);
     var tools = await service.LoadToolsAsync();
 
     Require(tools.Any(t => t.Id == "curated-single"), "curated manifest tool missing");
     Require(tools.Any(t => t.Id.StartsWith("local-tool", StringComparison.OrdinalIgnoreCase) || t.Id == "local-local-tool"), "local tool missing");
+}
+
+async Task TestGameSaveCopy()
+{
+    var source = Path.Combine(root, "save-copy-source");
+    var target = Path.Combine(root, "save-copy-target");
+    Directory.CreateDirectory(Path.Combine(source, "profile"));
+    await File.WriteAllTextAsync(Path.Combine(source, "profile", "save.bin"), "save-data");
+
+    var copyMethod = typeof(GameBackupService).GetMethod("CopyDirectory", BindingFlags.NonPublic | BindingFlags.Static);
+    Require(copyMethod is not null, "game save copy method missing");
+    var skipped = new List<string>();
+    var copied = (int)copyMethod!.Invoke(null, new object[] { source, target, skipped })!;
+
+    Require(copied == 1, "game save copy count was incorrect");
+    Require(skipped.Count == 0, "stable game save file was skipped");
+    Require(await File.ReadAllTextAsync(Path.Combine(target, "profile", "save.bin")) == "save-data", "game save content was not copied");
+}
+
+Task TestXboxGameProcessMatch()
+{
+    var matchMethod = typeof(GameLaunchService).GetMethod("MatchesGameProcess", BindingFlags.NonPublic | BindingFlags.Static);
+    Require(matchMethod is not null, "game process matching method missing");
+    bool Matches(string name, string path, string installPath) =>
+        (bool)matchMethod!.Invoke(null, new object[] { name, path, installPath })!;
+
+    Require(Matches("ForzaHorizon6", "", ""), "FH6 process name was not matched");
+    Require(Matches("Forza Horizon 6", "", ""), "formatted FH6 process name was not matched");
+    Require(Matches("ShippingGame", @"D:\XboxGames\Forza Horizon 6\Content\ShippingGame.exe", @"D:\XboxGames\Forza Horizon 6"),
+        "game executable under the Xbox install path was not matched");
+    Require(!Matches("XboxPcAppFT", @"C:\Program Files\WindowsApps\Microsoft.GamingApp\XboxPcAppFT.exe", @"D:\XboxGames\Forza Horizon 6"),
+        "Xbox client process was incorrectly matched");
+    Require(!Matches("ForzaHorizon5", "", ""), "FH5 process was incorrectly matched");
+    Require(!Matches("ShippingGame", @"D:\OtherGame\ShippingGame.exe", @"D:\XboxGames\Forza Horizon 6"),
+        "unrelated executable path was incorrectly matched");
+    return Task.CompletedTask;
 }
 
 async Task TestDownloadResumeShaAndCancel()

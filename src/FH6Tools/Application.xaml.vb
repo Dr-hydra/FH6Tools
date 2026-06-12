@@ -15,8 +15,11 @@ Public Class Application
         ToolTipService.VerticalOffsetProperty.OverrideMetadata(GetType(DependencyObject), New FrameworkPropertyMetadata(4.0))
 
         Try
-            QING.Core.Main.Init(New UiKitLogger With {.logFolder = Path.Combine(PathExeFolder, "logs"), .MinLevel = LogLevel.Info})
-        Catch
+            Dim logFolder = Path.Combine(PathExeFolder, "logs")
+            Directory.CreateDirectory(logFolder)
+            QING.Core.Main.Init(New UiKitLogger With {.logFolder = logFolder, .MinLevel = LogLevel.Info})
+        Catch ex As Exception
+            Debug.WriteLine($"FH6Tools file logging could not be initialized: {ex}")
         End Try
 
         AniControlEnabled += 1

@@ -19,7 +19,7 @@ Public Class GuidePageConfig
     Public Property TitleEn As String = "Season Guide"
     Public Property UpdatedAt As String = ""
     Public Property ImageUrl As String = ""
-    Public Property FallbackImageUrl As String = "pack://application:,,,/FH6Tools;component/Images/Guide/weekly-guide-2026-06-04.png"
+    Public Property FallbackImageUrl As String = "pack://application:,,,/FH6Tools;component/Images/Guide/weekly-guide-2026-06-11.png"
     Public Property WebUrl As String = "https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?h_camp=link&h_src=YXBwX3NoYXJl&link_id=a9f471f95020"
     Public Property UserAgent As String = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
     Public Property UseMobileEmulation As Boolean = True

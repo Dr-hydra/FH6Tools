@@ -28,8 +28,10 @@ Public Class GameBackupService
                                   Directory.CreateDirectory(BackupRoot)
                                   Dim platform = SafeName(If(game?.Source, "Unknown"))
                                   Dim target = Path.Combine(BackupRoot, $"{DateTime.Now:yyyyMMdd-HHmmssfff}-{platform}-{SafeName(backupType)}")
+                                  Dim skippedFiles As New List(Of String)
                                   Try
-                                      CopyDirectory(source, target)
+                                      Dim copiedFiles = CopyDirectory(source, target, skippedFiles)
+                                      If copiedFiles = 0 Then Throw New IOException("No game save files could be copied.")
                                   Catch
                                       Try
                                           If Directory.Exists(target) Then Directory.Delete(target, True)
@@ -38,7 +40,11 @@ Public Class GameBackupService
                                       End Try
                                       Throw
                                   End Try
+                                  If skippedFiles.Count > 0 Then
+                                      Logger.Warn($"Game save backup skipped {skippedFiles.Count} changing or locked file(s): {String.Join(", ", skippedFiles.Take(5))}")
+                                  End If
                                   PruneBackups(backupType, If(String.Equals(backupType, "before-launch", StringComparison.OrdinalIgnoreCase), 3, 10), protectedBackupPath)
+                                  Logger.Info($"Game save backup created: {target}")
                                   Return target
                               End Function)
     End Function
@@ -75,7 +81,13 @@ Public Class GameBackupService
         Await Task.Run(Sub()
                            Directory.CreateDirectory(target)
                            ClearDirectory(target)
-                           CopyDirectory(source, target)
+                           Dim skippedFiles As New List(Of String)
+                           If CopyDirectory(source, target, skippedFiles) = 0 Then
+                               Throw New IOException("No game save files could be restored.")
+                           End If
+                           If skippedFiles.Count > 0 Then
+                               Logger.Warn($"Game save restore skipped {skippedFiles.Count} changing or locked file(s): {String.Join(", ", skippedFiles.Take(5))}")
+                           End If
                        End Sub)
         Return safetyBackup
     End Function
@@ -106,15 +118,25 @@ Public Class GameBackupService
         Next
     End Sub
 
-    Private Shared Sub CopyDirectory(source As String, target As String)
+    Private Shared Function CopyDirectory(source As String, target As String, skippedFiles As List(Of String)) As Integer
         Directory.CreateDirectory(target)
-        For Each sourceFile In Directory.EnumerateFiles(source)
-            CopyReadableFile(sourceFile, Path.Combine(target, Path.GetFileName(sourceFile)))
-        Next
-        For Each sourceDirectory In Directory.EnumerateDirectories(source)
-            CopyDirectory(sourceDirectory, Path.Combine(target, Path.GetFileName(sourceDirectory)))
-        Next
-    End Sub
+        Dim copiedFiles As Integer
+        Try
+            For Each sourceFile In Directory.EnumerateFiles(source)
+                If CopyReadableFileWithRetry(sourceFile, Path.Combine(target, Path.GetFileName(sourceFile))) Then
+                    copiedFiles += 1
+                Else
+                    skippedFiles.Add(sourceFile)
+                End If
+            Next
+            For Each sourceDirectory In Directory.EnumerateDirectories(source)
+                copiedFiles += CopyDirectory(sourceDirectory, Path.Combine(target, Path.GetFileName(sourceDirectory)), skippedFiles)
+            Next
+        Catch ex As DirectoryNotFoundException
+            Logger.Warn(ex, $"Game save directory changed during backup: {source}")
+        End Try
+        Return copiedFiles
+    End Function
 
     Private Shared Sub ClearDirectory(target As String)
         For Each filePath In Directory.EnumerateFiles(target)
@@ -136,13 +158,22 @@ Public Class GameBackupService
         Return candidate.TrimEnd(Path.DirectorySeparatorChar)
     End Function
 
-    Private Shared Sub CopyReadableFile(source As String, target As String)
-        Using input = New FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite Or FileShare.Delete)
-            Using output = New FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None)
-                input.CopyTo(output)
-            End Using
-        End Using
-    End Sub
+    Private Shared Function CopyReadableFileWithRetry(source As String, target As String) As Boolean
+        For attempt = 1 To 3
+            Try
+                Using input = New FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite Or FileShare.Delete)
+                    Using output = New FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None)
+                        input.CopyTo(output)
+                    End Using
+                End Using
+                Return True
+            Catch ex As Exception When TypeOf ex Is IOException OrElse TypeOf ex Is UnauthorizedAccessException
+                If attempt = 3 Then Return False
+                Threading.Thread.Sleep(100 * attempt)
+            End Try
+        Next
+        Return False
+    End Function
 
     Private Shared Function SafeName(value As String) As String
         Dim result = If(String.IsNullOrWhiteSpace(value), "unknown", value)

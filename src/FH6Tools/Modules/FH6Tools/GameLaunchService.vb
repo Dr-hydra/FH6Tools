@@ -2,6 +2,10 @@ Imports Microsoft.Win32
 
 Public Class GameLaunchService
     Private ReadOnly ManifestService As New ToolManifestService
+    Private ReadOnly ProcessBindingLock As New Object
+    Private LaunchBaselineProcessIds As New HashSet(Of Integer)
+    Private BoundGameProcessIds As New HashSet(Of Integer)
+    Private BoundGameInstallPath As String = ""
     Public Const GameSourceAuto As String = "Auto"
     Public Const GameSourceSteam As String = "Steam"
     Public Const GameSourceXbox As String = "Xbox"
@@ -74,7 +78,8 @@ Public Class GameLaunchService
         Dim observedRunning = False
         Dim absentSince As Nullable(Of DateTime)
         While DateTime.UtcNow - started < startTimeout OrElse observedRunning
-            Dim running = Await Task.Run(AddressOf IsGameProcessRunning)
+            Dim processes = Await Task.Run(Function() FindGameProcesses(GetBoundInstallPath()))
+            Dim running = UpdateBoundProcesses(processes)
             If running Then
                 observedRunning = True
                 absentSince = Nothing
@@ -84,16 +89,40 @@ Public Class GameLaunchService
             End If
             Await Task.Delay(TimeSpan.FromSeconds(5))
         End While
+        Logger.Warn($"FH6 process binding timed out after {startTimeout}.")
         Return False
     End Function
 
     Public Function IsGameRunning() As Boolean
-        Return IsGameProcessRunning()
+        Return FindGameProcesses(GetBoundInstallPath()).Count > 0
     End Function
 
     Public Async Function LaunchAsync(game As GameInstallState) As Task
         If Not game.IsInstalled Then Throw New InvalidOperationException("FH6 is not installed or bound.")
-        Process.Start(New ProcessStartInfo With {.FileName = game.LaunchCommand, .UseShellExecute = True})
+        Dim baseline = Process.GetProcesses().
+            Select(Function(candidate)
+                       Try
+                           Return candidate.Id
+                       Finally
+                           candidate.Dispose()
+                       End Try
+                   End Function).
+            ToHashSet()
+        SyncLock ProcessBindingLock
+            LaunchBaselineProcessIds = baseline
+            BoundGameProcessIds.Clear()
+            BoundGameInstallPath = If(game.InstallPath, "")
+        End SyncLock
+        Logger.Info($"FH6 launch requested through {game.Source}; captured {baseline.Count} existing process IDs.")
+        Try
+            Process.Start(New ProcessStartInfo With {.FileName = game.LaunchCommand, .UseShellExecute = True})
+        Catch
+            SyncLock ProcessBindingLock
+                LaunchBaselineProcessIds.Clear()
+                BoundGameProcessIds.Clear()
+            End SyncLock
+            Throw
+        End Try
         Dim state = Await ManifestService.LoadStateAsync()
         state.LastGameLaunchAt = DateTimeOffset.Now.ToString("O")
         Await ManifestService.SaveStateAsync(state)
@@ -237,19 +266,70 @@ Public Class GameLaunchService
         Return ""
     End Function
 
-    Private Shared Function IsGameProcessRunning() As Boolean
+    Private Function GetBoundInstallPath() As String
+        SyncLock ProcessBindingLock
+            Return BoundGameInstallPath
+        End SyncLock
+    End Function
+
+    Private Function UpdateBoundProcesses(processes As List(Of GameProcessInfo)) As Boolean
+        SyncLock ProcessBindingLock
+            Dim currentIds = processes.Select(Function(candidate) candidate.Id).ToHashSet()
+            For Each candidate In processes
+                If BoundGameProcessIds.Contains(candidate.Id) OrElse LaunchBaselineProcessIds.Contains(candidate.Id) Then Continue For
+                BoundGameProcessIds.Add(candidate.Id)
+                Logger.Info($"Bound FH6 process PID={candidate.Id}, name={candidate.Name}, path={If(candidate.ExecutablePath, "(unavailable)")}.")
+            Next
+            BoundGameProcessIds.RemoveWhere(Function(processId) Not currentIds.Contains(processId))
+            Return BoundGameProcessIds.Count > 0
+        End SyncLock
+    End Function
+
+    Private Shared Function FindGameProcesses(installPath As String) As List(Of GameProcessInfo)
+        Dim result As New List(Of GameProcessInfo)
         Try
-            Dim found = False
             For Each candidateProcess As Process In Process.GetProcesses()
                 Try
-                    found = found OrElse candidateProcess.ProcessName.Contains("ForzaHorizon6", StringComparison.OrdinalIgnoreCase)
+                    Dim processName = candidateProcess.ProcessName
+                    Dim executablePath As String = ""
+                    Try
+                        executablePath = candidateProcess.MainModule?.FileName
+                    Catch
+                        ' Protected or packaged processes may not expose their executable path.
+                    End Try
+                    If MatchesGameProcess(processName, executablePath, installPath) Then
+                        result.Add(New GameProcessInfo With {
+                            .Id = candidateProcess.Id,
+                            .Name = processName,
+                            .ExecutablePath = executablePath
+                        })
+                    End If
                 Catch
-                    ' Some protected processes do not expose their names.
+                    ' The process may exit while it is being inspected.
                 Finally
                     candidateProcess.Dispose()
                 End Try
             Next
-            Return found
+        Catch ex As Exception
+            Logger.Warn(ex, "FH6 process scan failed.")
+        End Try
+        Return result
+    End Function
+
+    Private Shared Function MatchesGameProcess(processName As String, executablePath As String, installPath As String) As Boolean
+        Dim normalizedName = New String(If(processName, "").
+            Where(Function(character) Char.IsLetterOrDigit(character)).
+            Select(Function(character) Char.ToLowerInvariant(character)).
+            ToArray())
+        If normalizedName.Contains("forzahorizon6", StringComparison.Ordinal) Then Return True
+
+        If String.IsNullOrWhiteSpace(executablePath) OrElse String.IsNullOrWhiteSpace(installPath) Then Return False
+        Try
+            Dim root = If(Directory.Exists(installPath), installPath, Path.GetDirectoryName(installPath))
+            If String.IsNullOrWhiteSpace(root) Then Return False
+            Dim normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) & Path.DirectorySeparatorChar
+            Dim normalizedExecutable = Path.GetFullPath(executablePath)
+            Return normalizedExecutable.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase)
         Catch
             Return False
         End Try
@@ -277,4 +357,10 @@ Public Class GameLaunchService
                 Return GameSourceAuto
         End Select
     End Function
+End Class
+
+Friend Class GameProcessInfo
+    Public Property Id As Integer
+    Public Property Name As String = ""
+    Public Property ExecutablePath As String = ""
 End Class

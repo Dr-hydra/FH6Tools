@@ -163,6 +163,8 @@ Public Class PageFhToolsRight
         BtnRefreshGame.Text = FhLanguage.Text("重新检测游戏", "Detect Game Again")
         BtnOpenGameFolder.Text = FhLanguage.Text("打开游戏目录", "Open Game Folder")
         BtnClearGameOverride.Text = FhLanguage.Text("清除手动设置", "Clear Manual Settings")
+        BtnSetGameSavePath.Text = FhLanguage.Text("自定义存档路径", "Choose Save Path")
+        BtnClearGameSavePath.Text = FhLanguage.Text("恢复自动识别", "Use Detected Save Path")
         BtnOpenDataRoot.Text = FhLanguage.Text("打开数据目录", "Open Data Folder")
         CardAbout.Title = FhLanguage.Text("关于 FH6Tools", "About FH6Tools")
         CardRuntimeInfo.Title = FhLanguage.Text("运行时与安全", "Runtime and Safety")
@@ -172,9 +174,9 @@ Public Class PageFhToolsRight
         ItemAboutManifest.Title = FhLanguage.Text("工具清单", "Tool Manifest")
         ItemAboutManifest.Info = FhLanguage.Text("远程清单可以新增工具，并同步项目地址、名称和中英简介。",
                                                  "The remote manifest can add tools and sync project URLs, names, and descriptions.")
-        ItemAboutMigration.Title = FhLanguage.Text("v1.3.0 更新说明", "v1.3.0 Update Notes")
-        ItemAboutMigration.Info = FhLanguage.Text("Xbox 版按各盘符下的 XboxGames\Forza Horizon 6 识别，存档备份仍使用 C:\XboxGames\GameSave\pgs。",
-                                                  "Xbox installs are detected from XboxGames\Forza Horizon 6 on each drive; save backups still use C:\XboxGames\GameSave\pgs.")
+        ItemAboutMigration.Title = FhLanguage.Text("Xbox 存档路径", "Xbox Save Path")
+        ItemAboutMigration.Info = FhLanguage.Text("Xbox 版根据游戏目录识别同一安装根目录下的 GameSave\pgs，也可以在设置中单独指定。",
+                                                  "Xbox saves are detected from GameSave\pgs beside the game folder and can be overridden in settings.")
         ItemAboutUpdateProtection.Title = FhLanguage.Text("更新数据保护", "Update Data Protection")
         ItemAboutUpdateProtection.Info = FhLanguage.Text("软件更新只覆盖程序文件，会保留配置、存档备份和已安装工具。",
                                                           "App updates replace only program files and preserve configuration, save backups, and installed tools.")
@@ -213,6 +215,12 @@ Public Class PageFhToolsRight
         RadioGameSteam.SetChecked(String.Equals(source, GameLaunchService.GameSourceSteam, StringComparison.OrdinalIgnoreCase), False)
         Dim pathText = If(String.IsNullOrWhiteSpace(CurrentState.GamePath), FhLanguage.Text("未设置", "Not set"), CurrentState.GamePath)
         LabManualGamePath.Text = FhLanguage.Text("手动路径：", "Manual path: ") & pathText
+        Dim savePath = GameBackupService.GetSavePath(CurrentGame)
+        Dim savePathSource = If(String.IsNullOrWhiteSpace(CurrentState.GameSavePathOverride),
+                                FhLanguage.Text("自动识别", "detected"),
+                                FhLanguage.Text("自定义", "custom"))
+        LabGameSavePath.Text = FhLanguage.Text("存档路径：", "Save path: ") & savePath & $" ({savePathSource})"
+        BtnClearGameSavePath.IsEnabled = Not String.IsNullOrWhiteSpace(CurrentState.GameSavePathOverride)
     End Function
 
     Private Async Function RefreshToolsAsync() As Task
@@ -630,6 +638,24 @@ Public Class PageFhToolsRight
         Await RefreshGameAsync()
     End Sub
 
+    Private Async Sub BtnSetGameSavePath_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnSetGameSavePath.Click
+        Dim currentPath = GameBackupService.GetSavePath(CurrentGame)
+        Dim initialDirectory = If(Directory.Exists(currentPath), currentPath, If(Directory.Exists(CurrentGame.InstallPath), CurrentGame.InstallPath, "C:\"))
+        Dim dialog As New OpenFolderDialog With {
+            .Title = FhLanguage.Text("选择游戏存档目录", "Choose game save folder"),
+            .InitialDirectory = initialDirectory
+        }
+        If dialog.ShowDialog() Then
+            Await GameService.SetGameSavePathAsync(dialog.FolderName)
+            Await RefreshGameAsync()
+        End If
+    End Sub
+
+    Private Async Sub BtnClearGameSavePath_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnClearGameSavePath.Click
+        Await GameService.ClearGameSavePathAsync()
+        Await RefreshGameAsync()
+    End Sub
+
     Private Async Sub BtnRefreshGame_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnRefreshGame.Click
         Await RefreshGameAsync()
     End Sub
@@ -748,17 +774,25 @@ Public Class PageFhToolsRight
                 Return
             End If
 
-            LabAppUpdateStatus.Text = FhLanguage.Text($"发现新版本 {update.LatestVersion}，当前版本为 {update.CurrentVersion}。",
-                                                      $"Version {update.LatestVersion} is available. Current version: {update.CurrentVersion}.")
+            Dim releaseNotesSummary = AppUpdateService.FormatReleaseNotes(update.ReleaseNotes, 300)
+            LabAppUpdateStatus.Text = FhLanguage.Text(
+                $"发现新版本 {update.LatestVersion}，当前版本为 {update.CurrentVersion}。更新内容：{releaseNotesSummary}",
+                $"Version {update.LatestVersion} is available. Current version: {update.CurrentVersion}. Release notes: {releaseNotesSummary}")
             If Not interactive Then Return
+            Dim releaseNotes = AppUpdateService.FormatReleaseNotes(update.ReleaseNotes)
+            Dim updateMessage = FhLanguage.Text(
+                $"发现新版本 {update.LatestVersion}，当前版本为 {update.CurrentVersion}。{vbCrLf}{vbCrLf}更新内容：{vbCrLf}{releaseNotes}",
+                $"Version {update.LatestVersion} is available. Current version: {update.CurrentVersion}.{vbCrLf}{vbCrLf}Release notes:{vbCrLf}{releaseNotes}")
             If String.IsNullOrWhiteSpace(update.ZipDownloadUrl) Then
-                MessageBox.Show(FhLanguage.Text("发现新版本，但该版本没有 ZIP 更新包。将打开发布页面。",
-                                                "A new version is available, but it has no ZIP update package. The release page will open."),
+                MessageBox.Show(updateMessage & vbCrLf & vbCrLf &
+                                FhLanguage.Text("该版本没有 ZIP 更新包，将打开发布页面。",
+                                                "This release has no ZIP update package. The release page will open."),
                                 "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Information)
                 Process.Start(New ProcessStartInfo With {.FileName = update.ReleaseUrl, .UseShellExecute = True})
                 Return
             End If
             Dim confirm = MessageBox.Show(
+                updateMessage & vbCrLf & vbCrLf &
                 FhLanguage.Text("是否下载并安装更新？更新只覆盖程序文件，FH6ToolsData 中的配置、存档备份和已安装工具将被保留。",
                                 "Download and install the update? Only app files are replaced; configuration, save backups, and installed tools in FH6ToolsData are preserved."),
                 "FH6Tools", MessageBoxButton.YesNo, MessageBoxImage.Question)

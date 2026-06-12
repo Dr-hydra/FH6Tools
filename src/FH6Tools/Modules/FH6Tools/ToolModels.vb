@@ -111,6 +111,7 @@ Public Class ToolStateStore
     Public Property Tools As List(Of ToolInstallState) = New List(Of ToolInstallState)
     Public Property GamePath As String = ""
     Public Property GameSourceOverride As String = ""
+    Public Property GameSavePathOverride As String = ""
     Public Property LastGameLaunchAt As String = ""
 End Class
 
@@ -149,6 +150,7 @@ Public Class GameInstallState
     Public Property Source As String = ""
     Public Property DisplayName As String = "Forza Horizon 6"
     Public Property InstallPath As String = ""
+    Public Property SavePath As String = ""
     Public Property LaunchCommand As String = ""
     Public Property LastLaunchAt As String = ""
     Public Property Message As String = ""

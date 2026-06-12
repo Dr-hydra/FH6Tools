@@ -23,10 +23,12 @@ FH6Tools is a Windows desktop community tool launcher and control center for For
 - The home page supports install/cancel download, launch/stop, frontend/backend start, folder/log opening, config open, backup, and restore actions.
 - Install actions run through a simple in-app queue; cancel stops the active job and clears pending jobs.
 - Backend port conflicts prompt for reusing an existing service, stopping the port owner, or changing the port.
-- The FH6 launch card includes game data backup and backup-folder entry points; users can select a data folder when automatic candidates are not found.
+- Xbox save paths are derived from the detected game directory's parent as `GameSave\pgs`; users can override the save directory independently from the game path in Game and Data settings.
 - Runtime data defaults to `AppContext.BaseDirectory\FH6ToolsData`; smoke tests set `FH6TOOLS_APPDATA_ROOT` to a workspace `artifacts\smoke-data` path. Do not move tool state/config/download data back to `%APPDATA%`.
 - Debug and Release builds are expected to compile with `dotnet build .\FH6Tools.slnx -c Debug` and `dotnet build .\FH6Tools.slnx -c Release`.
 - Windows x64 Release builds are framework-dependent. Distributable builds are created with `scripts/Publish-FH6Tools.ps1`, which places a shared private .NET 10 Desktop and ASP.NET Core runtime under `dotnet` beside `FH6Tools.exe`.
+- Publishing creates a `with-runtime` ZIP for first installs and an `update` ZIP without `dotnet` for existing installs. Asset names intentionally make pre-2.0.2 updaters prefer the full package while current updaters prefer the update-only package.
+- App updates use `FH6ToolsData\app-update` only for download and extraction. The updater removes it after applying an update, and app startup cleans stale artifacts left by older updater versions.
 - The published FH6Tools apphost searches the relative `dotnet` directory. Every launched tool receives `DOTNET_ROOT`, `DOTNET_ROOT_X64`, `DOTNET_MULTILEVEL_LOOKUP=0`, and the shared runtime at the front of `PATH`, so framework-dependent x64 .NET tools can use the same runtime.
 - `tests/FH6Tools.SmokeTests` verifies manifest/local tools, resume/SHA/cancel download behavior, zip/exe/msi install paths, config backup/restore, runtime status for `single`/`backendOnly`/`frontendBackend`, health-check failure, and port conflict handling.
 - `tools.md` is the owner-approved source list for curated tool candidates. The bundled manifest currently adapts OmniMix VB.NET Frontend, FH Language Combo Tool, Virtual TCU backend, FH6 Road Scanner, FH6 Subtitle Switcher, HorizonHaptics, and Forza Painter FH6.

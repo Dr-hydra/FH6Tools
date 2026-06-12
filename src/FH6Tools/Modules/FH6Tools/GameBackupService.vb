@@ -1,5 +1,5 @@
 Public Class GameBackupService
-    Private Const GameSavePath As String = "C:\XboxGames\GameSave\pgs"
+    Private Const LegacyGameSavePath As String = "C:\XboxGames\GameSave\pgs"
 
     Public ReadOnly Property BackupRoot As String
         Get
@@ -8,7 +8,22 @@ Public Class GameBackupService
     End Property
 
     Public Function GetSavePath(game As GameInstallState) As String
-        Return GameSavePath
+        If Not String.IsNullOrWhiteSpace(game?.SavePath) Then Return Path.GetFullPath(game.SavePath)
+        If String.Equals(game?.Source, GameLaunchService.GameSourceXbox, StringComparison.OrdinalIgnoreCase) Then
+            Dim installRoot = GetXboxInstallRoot(game.InstallPath)
+            If Not String.IsNullOrWhiteSpace(installRoot) Then Return Path.Combine(installRoot, "GameSave", "pgs")
+        End If
+        Return LegacyGameSavePath
+    End Function
+
+    Private Shared Function GetXboxInstallRoot(installPath As String) As String
+        If String.IsNullOrWhiteSpace(installPath) Then Return ""
+        Dim normalized = Path.GetFullPath(installPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        If File.Exists(normalized) OrElse Path.HasExtension(normalized) Then normalized = Path.GetDirectoryName(normalized)
+        If String.Equals(Path.GetFileName(normalized), "Forza Horizon 6", StringComparison.OrdinalIgnoreCase) Then
+            Return Path.GetDirectoryName(normalized)
+        End If
+        Return normalized
     End Function
 
     Public Function GetBackups() As List(Of GameSaveBackupInfo)

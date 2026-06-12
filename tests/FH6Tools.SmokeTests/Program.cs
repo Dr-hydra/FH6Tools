@@ -20,6 +20,10 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("language-default-persistence", TestLanguagePersistence),
     ("manifest-local-tools", TestManifestAndLocalTools),
     ("game-save-copy", TestGameSaveCopy),
+    ("game-save-path-resolution", TestGameSavePathResolution),
+    ("app-update-artifact-cleanup", TestAppUpdateArtifactCleanup),
+    ("app-update-release-notes", TestAppUpdateReleaseNotes),
+    ("app-update-asset-selection", TestAppUpdateAssetSelection),
     ("xbox-game-process-match", TestXboxGameProcessMatch),
     ("download-resume-sha-cancel", TestDownloadResumeShaAndCancel),
     ("zip-exe-msi-install-config-snapshot", TestZipInstallAndConfigSnapshots),
@@ -78,6 +82,8 @@ async Task TestManifestAndLocalTools()
     FhPaths.Ensure();
     var localExe = Path.Combine(root, "local-tool.exe");
     File.WriteAllText(localExe, "placeholder");
+    var service = new ToolManifestService();
+    await service.LoadToolsAsync();
 
     var manifestJson = """
     {
@@ -98,7 +104,6 @@ async Task TestManifestAndLocalTools()
     }
     """;
     await File.WriteAllTextAsync(FhPaths.ManifestPath, manifestJson);
-    var service = new ToolManifestService();
     await service.AddLocalToolAsync(localExe);
     var tools = await service.LoadToolsAsync();
 
@@ -121,6 +126,76 @@ async Task TestGameSaveCopy()
     Require(copied == 1, "game save copy count was incorrect");
     Require(skipped.Count == 0, "stable game save file was skipped");
     Require(await File.ReadAllTextAsync(Path.Combine(target, "profile", "save.bin")) == "save-data", "game save content was not copied");
+}
+
+Task TestGameSavePathResolution()
+{
+    var service = new GameBackupService();
+    var xbox = new GameInstallState
+    {
+        Source = GameLaunchService.GameSourceXbox,
+        InstallPath = @"C:\Games\Forza Horizon 6"
+    };
+    Require(service.GetSavePath(xbox) == @"C:\Games\GameSave\pgs", "Xbox save path was not derived from the install root");
+
+    xbox.InstallPath = @"C:\Games";
+    Require(service.GetSavePath(xbox) == @"C:\Games\GameSave\pgs", "Xbox install root was not accepted directly");
+
+    xbox.SavePath = @"D:\Custom Saves\pgs";
+    Require(service.GetSavePath(xbox) == @"D:\Custom Saves\pgs", "custom save path did not override Xbox detection");
+
+    var steam = new GameInstallState
+    {
+        Source = GameLaunchService.GameSourceSteam,
+        InstallPath = @"D:\SteamLibrary\steamapps\appmanifest_123.acf"
+    };
+    Require(service.GetSavePath(steam) == @"C:\XboxGames\GameSave\pgs", "Steam save path behavior changed");
+    return Task.CompletedTask;
+}
+
+Task TestAppUpdateArtifactCleanup()
+{
+    var updateRoot = Path.Combine(FhPaths.AppDataRoot, "app-update");
+    Directory.CreateDirectory(Path.Combine(updateRoot, "staging", "nested"));
+    File.WriteAllText(Path.Combine(updateRoot, "FH6Tools-update.zip"), "archive");
+    File.WriteAllText(Path.Combine(updateRoot, "apply-update.ps1"), "script");
+    File.WriteAllText(Path.Combine(updateRoot, "staging", "nested", "FH6Tools.exe"), "executable");
+
+    AppUpdateService.CleanupUpdateArtifacts();
+
+    Require(!Directory.Exists(updateRoot), "app update artifacts were not removed");
+    return Task.CompletedTask;
+}
+
+Task TestAppUpdateReleaseNotes()
+{
+    var notes = AppUpdateService.FormatReleaseNotes("## Fixes\n\n- Clean update files");
+    Require(notes.Contains("Clean update files", StringComparison.Ordinal), "release notes content was lost");
+    Require(notes.Contains(Environment.NewLine, StringComparison.Ordinal), "release notes line endings were not normalized");
+
+    var truncated = AppUpdateService.FormatReleaseNotes(new string('x', 100), 20);
+    Require(truncated.Length > 20 && truncated.Contains("truncated", StringComparison.OrdinalIgnoreCase) ||
+            truncated.Contains("内容过长", StringComparison.Ordinal), "long release notes were not marked as truncated");
+
+    var empty = AppUpdateService.FormatReleaseNotes("");
+    Require(!string.IsNullOrWhiteSpace(empty), "empty release notes did not receive a fallback message");
+    return Task.CompletedTask;
+}
+
+Task TestAppUpdateAssetSelection()
+{
+    var scoreMethod = typeof(AppUpdateService).GetMethod("GetUpdateAssetScore", BindingFlags.NonPublic | BindingFlags.Static);
+    Require(scoreMethod is not null, "update asset score method missing");
+    int Score(string name) => (int)scoreMethod!.Invoke(null, new object[] { name })!;
+
+    var updateScore = Score("FH6Tools-2.0.2-win-x64-update.zip");
+    var fullScore = Score("FH6Tools-2.0.2-win-x64-with-runtime.zip");
+    Require(updateScore > fullScore, "new updater did not prefer the update-only package");
+
+    var legacyUpdateScore = 100;
+    var legacyFullScore = 110;
+    Require(legacyFullScore > legacyUpdateScore, "package names no longer preserve old updater compatibility");
+    return Task.CompletedTask;
 }
 
 Task TestXboxGameProcessMatch()

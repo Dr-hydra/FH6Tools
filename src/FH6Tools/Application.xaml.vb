@@ -22,6 +22,7 @@ Public Class Application
             Debug.WriteLine($"FH6Tools file logging could not be initialized: {ex}")
         End Try
 
+        AppUpdateService.CleanupUpdateArtifacts()
         AniControlEnabled += 1
     End Sub
 

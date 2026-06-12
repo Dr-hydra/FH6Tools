@@ -18,10 +18,16 @@ Create a distributable publish directory with:
 .\scripts\Publish-FH6Tools.ps1
 ```
 
-The script publishes FH6Tools as framework-dependent and installs the latest
-.NET Desktop Runtime 10 and ASP.NET Core Runtime 10 into the shared `dotnet`
-directory. The published FH6Tools apphost searches that relative directory, so
-users do not need a system-wide .NET installation.
+The script creates two ZIP packages:
+
+- `FH6Tools-<version>-win-x64-with-runtime.zip` for first-time installation.
+- `FH6Tools-<version>-win-x64-update.zip` for updating an existing installation.
+
+The full package includes the latest .NET Desktop Runtime 10 and ASP.NET Core
+Runtime 10 in the shared `dotnet` directory. The update package omits that
+directory and relies on the runtime already present in the target installation.
+Package names preserve compatibility with old updaters, which continue to
+prefer the full package. FH6Tools 2.0.2 and later prefer the update-only package.
 
 Every tool process launched by FH6Tools receives `DOTNET_ROOT`,
 `DOTNET_ROOT_X64`, `DOTNET_MULTILEVEL_LOOKUP=0`, and a `PATH` beginning with the

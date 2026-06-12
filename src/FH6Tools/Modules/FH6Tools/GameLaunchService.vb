@@ -16,40 +16,40 @@ Public Class GameLaunchService
         Dim overrideSource = NormalizeGameSource(state.GameSourceOverride)
         If Not String.Equals(overrideSource, GameSourceAuto, StringComparison.OrdinalIgnoreCase) Then
             Dim manual = DetectManualOverride(state)
-            If manual.IsInstalled Then Return manual
+            If manual.IsInstalled Then Return CompleteGameState(manual, state)
         ElseIf Not String.IsNullOrWhiteSpace(state.GamePath) AndAlso File.Exists(state.GamePath) Then
-            Return New GameInstallState With {
+            Return CompleteGameState(New GameInstallState With {
                 .IsInstalled = True,
                 .Source = GameSourceManual,
                 .InstallPath = state.GamePath,
                 .LaunchCommand = state.GamePath,
                 .LastLaunchAt = state.LastGameLaunchAt,
                 .Message = "Manual game path is configured."
-            }
+            }, state)
         End If
 
         Dim steam = DetectSteamInstall()
         If steam.IsInstalled Then
             steam.LastLaunchAt = state.LastGameLaunchAt
-            Return steam
+            Return CompleteGameState(steam, state)
         End If
 
         Dim registry = DetectRegistryInstall()
         If registry.IsInstalled Then
             registry.LastLaunchAt = state.LastGameLaunchAt
-            Return registry
+            Return CompleteGameState(registry, state)
         End If
 
         Dim xbox = DetectXboxInstall()
         If xbox.IsInstalled Then
             xbox.LastLaunchAt = state.LastGameLaunchAt
-            Return xbox
+            Return CompleteGameState(xbox, state)
         End If
 
-        Return New GameInstallState With {
+        Return CompleteGameState(New GameInstallState With {
             .IsInstalled = False,
             .Message = "FH6 was not detected. Bind the executable or launch it from Steam/Xbox first."
-        }
+        }, state)
     End Function
 
     Public Async Function BindManualPathAsync(path As String, Optional source As String = "") As Task
@@ -69,6 +69,19 @@ Public Class GameLaunchService
         Dim state = Await ManifestService.LoadStateAsync()
         state.GamePath = ""
         state.GameSourceOverride = GameSourceAuto
+        Await ManifestService.SaveStateAsync(state)
+    End Function
+
+    Public Async Function SetGameSavePathAsync(path As String) As Task
+        If String.IsNullOrWhiteSpace(path) Then Throw New ArgumentException("Game save path cannot be empty.", NameOf(path))
+        Dim state = Await ManifestService.LoadStateAsync()
+        state.GameSavePathOverride = IO.Path.GetFullPath(path)
+        Await ManifestService.SaveStateAsync(state)
+    End Function
+
+    Public Async Function ClearGameSavePathAsync() As Task
+        Dim state = Await ManifestService.LoadStateAsync()
+        state.GameSavePathOverride = ""
         Await ManifestService.SaveStateAsync(state)
     End Function
 
@@ -264,6 +277,13 @@ Public Class GameLaunchService
             End Try
         Next
         Return ""
+    End Function
+
+    Private Shared Function CompleteGameState(game As GameInstallState, state As ToolStateStore) As GameInstallState
+        If Not String.IsNullOrWhiteSpace(state.GameSavePathOverride) Then
+            game.SavePath = state.GameSavePathOverride
+        End If
+        Return game
     End Function
 
     Private Function GetBoundInstallPath() As String

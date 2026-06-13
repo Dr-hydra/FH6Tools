@@ -8,10 +8,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>FH6Tools</RootNamespace>
     <AssemblyName>FH6Tools</AssemblyName>
-    <Version>2.0.2</Version>
-    <AssemblyVersion>2.0.2.0</AssemblyVersion>
-    <FileVersion>2.0.2.0</FileVersion>
-    <InformationalVersion>2.0.2</InformationalVersion>
+    <Version>2.1.0</Version>
+    <AssemblyVersion>2.1.0.0</AssemblyVersion>
+    <FileVersion>2.1.0.0</FileVersion>
+    <InformationalVersion>2.1.0</InformationalVersion>
     <Description>Forza Horizon 6 community tool launcher and save backup manager.</Description>
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Dr-hydra/FH6Tools</RepositoryUrl>

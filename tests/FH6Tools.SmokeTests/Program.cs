@@ -83,7 +83,12 @@ async Task TestManifestAndLocalTools()
     var localExe = Path.Combine(root, "local-tool.exe");
     File.WriteAllText(localExe, "placeholder");
     var service = new ToolManifestService();
-    await service.LoadToolsAsync();
+    var bundledTools = await service.LoadToolsAsync();
+    var adjustTool = bundledTools.SingleOrDefault(t => t.Id == "fh6-adjust-tool");
+    Require(adjustTool is not null, "FH6 Adjust Tool is missing from the trusted bundled manifest");
+    Require(adjustTool!.DownloadUrl.EndsWith("*framework-dependent.zip", StringComparison.OrdinalIgnoreCase), "FH6 Adjust Tool release pattern is incorrect");
+    Require(adjustTool.Single?.Executable == "**\\FH6AdjustTool.exe", "FH6 Adjust Tool executable pattern is incorrect");
+    Require(adjustTool.ConfigFiles.Any(c => c.Path.EndsWith("saved_tunes.json", StringComparison.OrdinalIgnoreCase)), "FH6 Adjust Tool saved tunes snapshot is missing");
 
     var manifestJson = """
     {

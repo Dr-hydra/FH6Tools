@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-10T14:00:00.000Z",
+  "updatedAt": "2026-06-13T08:00:00.000Z",
   "tools": [
     {
       "id": "omnimix-vbnet-frontend",
@@ -292,6 +292,37 @@
       "requiresAdmin": false,
       "riskLevel": "high",
       "notes": "Keep usage scoped to local livery/art workflows; do not use features that tamper with account, save, leaderboard, or online economy data."
+    },
+    {
+      "id": "fh6-adjust-tool",
+      "name": "FH6 Adjust Tool",
+      "version": "latest",
+      "category": "tuning",
+      "description": "A Forza Horizon 6 vehicle physics tuning and AI-assisted optimization tool.",
+      "descriptionZh": "《极限竞速：地平线 6》车辆物理调校与 AI 智能调优工具。",
+      "homepage": "https://github.com/Dr-hydra/FH6-Adjust-Tool",
+      "downloadUrl": "github-release://Dr-hydra/FH6-Adjust-Tool/*framework-dependent.zip",
+      "sha256": "",
+      "installType": "zip",
+      "toolType": "single",
+      "single": {
+        "executable": "**\\FH6AdjustTool.exe",
+        "workingDirectory": "",
+        "defaultPort": 0,
+        "healthUrl": "",
+        "url": "",
+        "arguments": []
+      },
+      "configFiles": [
+        {
+          "name": "Saved Tunes",
+          "path": "%APPDATA%\\FH6AdjustTool\\saved_tunes.json",
+          "kind": "file"
+        }
+      ],
+      "requiresAdmin": false,
+      "riskLevel": "normal",
+      "notes": "AI provider credentials remain in the application's private settings and are not included in FH6Tools snapshots."
     }
   ]
 }

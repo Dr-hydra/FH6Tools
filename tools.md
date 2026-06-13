@@ -6,3 +6,4 @@ https://github.com/Dr-hydra/FH6-Road-Scanner
 https://github.com/Forza-Love/fh6-virtual_tcu
 https://github.com/haritha99ch/HorizonHaptics
 https://github.com/bvzrays/forza-painter-fh6
+https://github.com/Dr-hydra/FH6-Adjust-Tool

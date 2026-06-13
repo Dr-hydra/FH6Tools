@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-12T00:00:00.000Z",
+  "updatedAt": "2026-06-13T00:00:00.000Z",
   "guide": {
     "enabled": true,
     "title": "季节赛攻略",
@@ -70,6 +70,13 @@
       "description": "Converts images into Forza Horizon 6 livery painting data.",
       "descriptionZh": "将图片转换为《极限竞速：地平线 6》涂装绘制数据。",
       "homepage": "https://github.com/bvzrays/forza-painter-fh6"
+    },
+    {
+      "id": "fh6-adjust-tool",
+      "name": "FH6 Adjust Tool",
+      "description": "A Forza Horizon 6 vehicle physics tuning and AI-assisted optimization tool.",
+      "descriptionZh": "《极限竞速：地平线 6》车辆物理调校与 AI 智能调优工具。",
+      "homepage": "https://github.com/Dr-hydra/FH6-Adjust-Tool"
     }
   ]
 }

@@ -176,6 +176,29 @@ Public Class ToolManifestService
         Return entry
     End Function
 
+    Public Async Function UpdateLocalToolExecutableAsync(toolId As String, filePath As String) As Task
+        Dim store = Await LoadLocalToolsAsync()
+        Dim tool = store.Tools.FirstOrDefault(Function(t) String.Equals(t.Id, toolId, StringComparison.OrdinalIgnoreCase))
+        If tool IsNot Nothing Then
+            Dim endpoint = If(tool.[Single], tool.Backend)
+            If endpoint IsNot Nothing Then
+                endpoint.Executable = filePath
+            Else
+                tool.[Single] = New ToolEndpointDefinition With {.Executable = filePath}
+            End If
+            Await File.WriteAllTextAsync(FhPaths.LocalToolsPath, JsonSerializer.Serialize(store, JsonOptions))
+        End If
+    End Function
+
+    Public Async Function UpdateLocalToolNameAsync(toolId As String, newName As String) As Task
+        Dim store = Await LoadLocalToolsAsync()
+        Dim tool = store.Tools.FirstOrDefault(Function(t) String.Equals(t.Id, toolId, StringComparison.OrdinalIgnoreCase))
+        If tool IsNot Nothing Then
+            tool.Name = newName
+            Await File.WriteAllTextAsync(FhPaths.LocalToolsPath, JsonSerializer.Serialize(store, JsonOptions))
+        End If
+    End Function
+
     Private Async Function LoadLocalToolsAsync() As Task(Of LocalToolStore)
         FhPaths.Ensure()
         If Not File.Exists(FhPaths.LocalToolsPath) Then Return New LocalToolStore

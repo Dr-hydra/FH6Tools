@@ -20,6 +20,7 @@ Public Class PageFhToolsRight
     Private CurrentGame As GameInstallState = New GameInstallState
     Private ReadOnly PendingInstallTools As New Queue(Of DownloadTaskViewModel)
     Private IsDownloadQueueRunning As Boolean
+    Private InstallQueueCts As Threading.CancellationTokenSource
     Private IsRuntimeRefreshRunning As Boolean
     Private RuntimeRefreshStarted As Boolean
     Private GameBackupMonitor As Task = Task.CompletedTask
@@ -150,6 +151,7 @@ Public Class PageFhToolsRight
         BtnChangeInstallRoot.Text = FhLanguage.Text("更改安装位置", "Change Install Location")
         BtnImportZip.Text = FhLanguage.Text("导入 ZIP", "Import ZIP")
         BtnImportFolder.Text = FhLanguage.Text("添加文件夹", "Add Folder")
+        BtnCancelDownload.Text = FhLanguage.Text("取消安装", "Cancel Install")
         CardConfig.Title = FhLanguage.Text("常规设置", "General Settings")
         CardGameData.Title = FhLanguage.Text("游戏与数据", "Game and Data")
         LabGameVersionTitle.Text = FhLanguage.Text("游戏版本", "Game Version")
@@ -925,8 +927,10 @@ Public Class PageFhToolsRight
     Private Async Function ProcessInstallQueueAsync() As Task
         If IsDownloadQueueRunning Then Return
         IsDownloadQueueRunning = True
+        InstallQueueCts = New Threading.CancellationTokenSource()
         Try
             While PendingInstallTools.Count > 0
+                If InstallQueueCts.IsCancellationRequested Then Exit While
                 Dim downloadTask = PendingInstallTools.Dequeue()
                 Dim tool = downloadTask.Tool
                 downloadTask.StatusText = FhLanguage.Text("正在下载", "Downloading")
@@ -937,11 +941,15 @@ Public Class PageFhToolsRight
                                                                             DownloadProgressBar.Value = downloadTask.Percentage
                                                                             LabDownloadStatus.Text = $"{FhLanguage.Text("正在安装", "Installing")} {tool.Name}：{downloadTask.ProgressText} · {FhLanguage.Text("等待", "Pending")} {PendingInstallTools.Count}"
                                                                         End Sub)
-                    Dim installPath = Await InstallService.DownloadAndInstallAsync(tool, progress, Threading.CancellationToken.None)
+                    Dim installPath = Await InstallService.DownloadAndInstallAsync(tool, progress, InstallQueueCts.Token)
                     downloadTask.StatusText = FhLanguage.Text("已完成", "Completed")
                     DownloadProgressBar.Value = 100
                     LabDownloadStatus.Text = $"Installed {tool.Name} to {installPath}"
                     Await RefreshToolsAsync()
+                Catch ex As OperationCanceledException
+                    downloadTask.StatusText = FhLanguage.Text("已取消", "Cancelled")
+                    DownloadProgressBar.Value = 0
+                    LabDownloadStatus.Text = FhLanguage.Text("安装已取消。", "Installation cancelled.")
                 Catch ex As Exception
                     downloadTask.StatusText = FhLanguage.Text("失败：", "Failed: ") & ex.Message
                     DownloadProgressBar.Value = 0
@@ -952,8 +960,70 @@ Public Class PageFhToolsRight
             LabDownloadStatus.Text &= If(PendingInstallTools.Count = 0, " Queue idle.", "")
         Finally
             IsDownloadQueueRunning = False
+            If InstallQueueCts IsNot Nothing Then
+                InstallQueueCts.Dispose()
+                InstallQueueCts = Nothing
+            End If
         End Try
     End Function
+
+    Private Sub BtnCancelDownload_Click(sender As Object, e As MouseButtonEventArgs)
+        If InstallQueueCts IsNot Nothing Then
+            InstallQueueCts.Cancel()
+        End If
+        PendingInstallTools.Clear()
+        LabDownloadStatus.Text = FhLanguage.Text("安装已取消。", "Installation cancelled.")
+        DownloadProgressBar.Value = 0
+    End Sub
+
+    Private Async Sub HeaderToolBind_Click(sender As Object, e As RouteEventArgs)
+        Dim tool = GetToolFromSender(sender)
+        If tool IsNot Nothing AndAlso String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then
+            Dim dialog As New OpenFileDialog With {
+                .Title = FhLanguage.Text("选择要绑定的主程序", "Select Main Executable to Bind"),
+                .Filter = "Executable files (*.exe)|*.exe"
+            }
+            Dim initialDir = InstallService.GetInstallLocation(tool)
+            If Directory.Exists(initialDir) Then
+                dialog.InitialDirectory = initialDir
+            End If
+            If Not dialog.ShowDialog() Then Return
+            Try
+                Dim endpoint = If(tool.[Single], tool.Backend)
+                If endpoint IsNot Nothing Then
+                    endpoint.Executable = dialog.FileName
+                Else
+                    tool.[Single] = New ToolEndpointDefinition With {.Executable = dialog.FileName}
+                End If
+
+                Await ManifestService.UpdateLocalToolExecutableAsync(tool.Id, dialog.FileName)
+                Await RefreshToolsAsync()
+                Hint(FhLanguage.Text("绑定主程序成功。", "Successfully bound main executable."), HintType.Green)
+            Catch ex As Exception
+                Hint(ex.Message, HintType.Red)
+            End Try
+        End If
+    End Sub
+
+    Private Async Sub HeaderToolRename_Click(sender As Object, e As RouteEventArgs)
+        Dim tool = GetToolFromSender(sender)
+        If tool IsNot Nothing AndAlso String.Equals(tool.InstallType, "local", StringComparison.OrdinalIgnoreCase) Then
+            Dim newName = Microsoft.VisualBasic.Interaction.InputBox(
+                FhLanguage.Text("请输入新的工具名称：", "Please enter new tool name:"),
+                FhLanguage.Text("重命名工具", "Rename Tool"),
+                tool.Name
+            )
+            If String.IsNullOrWhiteSpace(newName) OrElse String.Equals(newName.Trim(), tool.Name) Then Return
+            Try
+                tool.Name = newName.Trim()
+                Await ManifestService.UpdateLocalToolNameAsync(tool.Id, newName.Trim())
+                Await RefreshToolsAsync()
+                Hint(FhLanguage.Text("重命名成功。", "Successfully renamed."), HintType.Green)
+            Catch ex As Exception
+                Hint(ex.Message, HintType.Red)
+            End Try
+        End If
+    End Sub
 
     Private Sub ToolOpenFolder_Click(sender As Object, e As MouseButtonEventArgs)
         OpenToolFolder(sender)
@@ -1085,6 +1155,42 @@ Public Class ToolCardViewModel
         Get
             Dim value = If(InstalledAt.HasValue, InstalledAt.Value.ToString("yyyy-MM-dd HH:mm:ss"), "-")
             Return FhLanguage.Text("安装时间：", "Installed at: ") & value
+        End Get
+    End Property
+
+    Public ReadOnly Property RenameText As String
+        Get
+            Return FhLanguage.Text("重命名", "Rename")
+        End Get
+    End Property
+
+    Public ReadOnly Property BindText As String
+        Get
+            Return FhLanguage.Text("手动绑定", "Manual Bind")
+        End Get
+    End Property
+
+    Public ReadOnly Property OpenFolderText As String
+        Get
+            Return FhLanguage.Text("安装位置", "Location")
+        End Get
+    End Property
+
+    Public ReadOnly Property UninstallText As String
+        Get
+            Return FhLanguage.Text("卸载", "Uninstall")
+        End Get
+    End Property
+
+    Public ReadOnly Property IsLocalTool As Boolean
+        Get
+            Return String.Equals(Tool.InstallType, "local", StringComparison.OrdinalIgnoreCase)
+        End Get
+    End Property
+
+    Public ReadOnly Property BindButtonVisibility As Visibility
+        Get
+            Return If(IsLocalTool, Visibility.Visible, Visibility.Collapsed)
         End Get
     End Property
 

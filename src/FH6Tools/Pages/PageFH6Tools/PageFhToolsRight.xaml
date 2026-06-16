@@ -74,8 +74,10 @@
                                     <TextBlock Text="{Binding InstallTimeLine}" Foreground="{DynamicResource ColorBrushGray3}" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,38,0">
-                                    <local:MyIconTextButton Text="安装位置" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M96 256h320l96 96h416v448H96z" Click="HeaderToolOpenFolder_Click" />
-                                    <local:MyIconTextButton Text="卸载" Height="27" LogoScale="0.7" Logo="F1 M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 2,0Z" Click="HeaderToolUninstall_Click" />
+                                    <local:MyIconTextButton Text="{Binding RenameText}" Visibility="{Binding BindButtonVisibility}" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M256 768h128l384-384-128-128-384 384v128zM896 128l-64 64-128-128 64-64c12-12 32-12 44 0l84 84c12 12 12 32 0 44z" Click="HeaderToolRename_Click" />
+                                    <local:MyIconTextButton Text="{Binding BindText}" Visibility="{Binding BindButtonVisibility}" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M512 320a192 192 0 1 0 0 384 192 192 0 0 0 0-384zM448 64h128l24 112 96 40 96-64 80 80-64 96 40 96 112 24v128l-112 24-40 96 64 96-80 80-96-64-96 40-24 112H448l-24-112-96-40-96 64-80-80 64-96-40-96-112-24V448l112-24 40-96-64-96 80-80 96 64 96-40z" Click="HeaderToolBind_Click" />
+                                    <local:MyIconTextButton Text="{Binding OpenFolderText}" Height="27" Margin="0,0,6,0" LogoScale="0.7" Logo="M96 256h320l96 96h416v448H96z" Click="HeaderToolOpenFolder_Click" />
+                                    <local:MyIconTextButton Text="{Binding UninstallText}" Height="27" LogoScale="0.7" Logo="F1 M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 2,0Z" Click="HeaderToolUninstall_Click" />
                                 </StackPanel>
                             </local:MyCard>
                         </DataTemplate>
@@ -96,7 +98,15 @@
                         <local:MyButton x:Name="BtnImportFolder" Grid.Column="6" Text="添加文件夹" Padding="10,8" />
                     </Grid>
                     <TextBlock x:Name="LabDownloadStatus" Text="当前没有下载任务。" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,8" />
-                    <ProgressBar x:Name="DownloadProgressBar" Height="8" Minimum="0" Maximum="100" Value="0" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ProgressBar x:Name="DownloadProgressBar" Height="8" Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center" />
+                        <local:MyButton x:Name="BtnCancelDownload" Grid.Column="2" Text="取消安装" Padding="12,5" Margin="0" Click="BtnCancelDownload_Click" />
+                    </Grid>
                 </StackPanel>
             </local:MyCard>
             <ItemsControl x:Name="DownloadToolCards" Visibility="Collapsed" Margin="0,12,0,0">

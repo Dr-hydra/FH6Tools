@@ -3,17 +3,23 @@ Public Module Settings
     Private ReadOnly Values As New Dictionary(Of String, Object)(StringComparer.OrdinalIgnoreCase) From {
         {"SystemDebugMode", False},
         {"SystemSystemCache", ""},
-        {"UiLauncherTheme", 0},
+        {"UiLauncherTheme", 5},
         {"UiLauncherThemeHue", 210},
         {"UiLauncherThemeSat", 70},
-        {"UiLauncherThemeLight", 0},
-        {"UiLauncherTransparent", 600},
-        {"UiBackgroundOpacity", 280},
+        {"UiLauncherThemeLight", 20},
+        {"UiLauncherTransparent", 100},
+        {"UiControlOpacity", 95},
+        {"UiBackgroundType", True},
+        {"UiBackgroundOpacity", 28},
         {"UiBackgroundBlur", 8},
+        {"UiBackgroundClarity", 100},
+        {"UiBackgroundImagePath", ""},
+        {"UiCustomTitle", ""},
         {"UiLauncherLogo", False},
         {"UiLanguage", "zh-CN"},
         {"WindowHeight", 720},
-        {"WindowWidth", 1040}
+        {"WindowWidth", 1040},
+        {"GameIconPath", ""}
     }
 
     Public Function [Get](Of T)(key As String) As T

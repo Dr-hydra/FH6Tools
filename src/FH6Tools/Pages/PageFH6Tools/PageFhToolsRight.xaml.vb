@@ -6,6 +6,7 @@ Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Win32
 
 Public Class PageFhToolsRight
+    Private Shared ReadOnly GithubApiClient As HttpClient = CreateGithubClient()
     Private ReadOnly ManifestService As New ToolManifestService
     Private ReadOnly RuntimeService As New ToolRuntimeService
     Private ReadOnly InstallService As New ToolInstallService
@@ -78,6 +79,8 @@ Public Class PageFhToolsRight
         RadioLanguageEn.SetChecked(FhLanguage.IsEnglish, False)
         RadioStartupOn.SetChecked(IsStartupEnabled(), False)
         RadioStartupOff.SetChecked(Not IsStartupEnabled(), False)
+        SettingService.RefreshSettings(PanPersonalization)
+        UpdatePersonalizationLabels()
         Await RefreshGameOverrideControlsAsync()
         Await LoadToolsFastAsync()
         Await RefreshGuideAsync()
@@ -107,6 +110,7 @@ Public Class PageFhToolsRight
         CardDownloads.Visibility = If(page = FhShellPage.Downloads, Visibility.Visible, Visibility.Collapsed)
         DownloadToolCards.Visibility = CardDownloads.Visibility
         CardConfig.Visibility = If(page = FhShellPage.Config, Visibility.Visible, Visibility.Collapsed)
+        PanPersonalization.Visibility = If(page = FhShellPage.Personalization, Visibility.Visible, Visibility.Collapsed)
         CardGameData.Visibility = If(page = FhShellPage.GameData, Visibility.Visible, Visibility.Collapsed)
         CardAbout.Visibility = If(page = FhShellPage.About, Visibility.Visible, Visibility.Collapsed)
         CardRuntimeInfo.Visibility = If(page = FhShellPage.RuntimeInfo, Visibility.Visible, Visibility.Collapsed)
@@ -191,6 +195,39 @@ Public Class PageFhToolsRight
         End If
         ItemAboutRuntime.Title = FhLanguage.Text("共享运行时", "Shared Runtime")
         ItemAboutRuntime.Info = FhLanguage.Text(".NET 10 Desktop 与 ASP.NET Core Runtime 由所有托管程序共享。", ".NET 10 Desktop and ASP.NET Core Runtime are shared by all managed programs.")
+        
+        CardThemePreset.Title = FhLanguage.Text("预设方案选择", "Theme Presets")
+        RadioTheme0.Text = FhLanguage.Text("经典蓝", "Classic Blue")
+        RadioTheme1.Text = FhLanguage.Text("翡翠绿", "Emerald Green")
+        RadioTheme5.Text = FhLanguage.Text("炫酷黑", "Cool Black")
+        RadioTheme7.Text = FhLanguage.Text("紫罗兰", "Violet")
+        RadioTheme9.Text = FhLanguage.Text("活力橙", "Vibrant Orange")
+        RadioTheme10.Text = FhLanguage.Text("玫瑰红", "Rose Red")
+        RadioThemeCustom.Text = FhLanguage.Text("自定义配色", "Custom Theme")
+        
+        CardCustomHSL.Title = FhLanguage.Text("自定义 HSL 调色板", "Custom HSL Palette")
+        CardBackgroundOpacity.Title = FhLanguage.Text("不透明度设置", "Opacity Settings")
+        CardBackgroundImg.Title = FhLanguage.Text("磨砂背景图设置", "Background Image Settings")
+        
+        LabCustomBgTitle.Text = FhLanguage.Text("本地自定义背景图", "Custom Background Image")
+        BtnSelectBg.Text = FhLanguage.Text("选择图片", "Choose Image")
+        BtnResetBg.Text = FhLanguage.Text("恢复默认", "Restore Default")
+        
+        If CardGameIcon IsNot Nothing Then
+            CardGameIcon.Title = FhLanguage.Text("游戏图标自定义", "Game Icon Customization")
+        End If
+        If LabCustomIconTitle IsNot Nothing Then
+            LabCustomIconTitle.Text = FhLanguage.Text("启动台游戏图标", "Launcher Game Icon")
+        End If
+        If BtnSelectIcon IsNot Nothing Then
+            BtnSelectIcon.Text = FhLanguage.Text("选择图片", "Choose Image")
+        End If
+        If BtnResetIcon IsNot Nothing Then
+            BtnResetIcon.Text = FhLanguage.Text("恢复默认", "Restore Default")
+        End If
+        
+        UpdatePersonalizationLabels()
+
         LabInstalledToolSummary.Text = FhLanguage.Text($"已安装工具：{InstalledToolCardsSource.Count} 个", $"Installed tools: {InstalledToolCardsSource.Count}")
         LabConfigToolSummary.Text = LabInstalledToolSummary.Text
         Configure(CurrentPage)
@@ -1096,6 +1133,295 @@ Public Class PageFhToolsRight
             Hint(ex.Message, HintType.Red)
         End Try
     End Sub
+
+    Public Sub UpdatePersonalizationLabels()
+        If SliderHue Is Nothing OrElse SliderSat Is Nothing OrElse SliderLight Is Nothing Then Return
+        If SliderWindowTrans Is Nothing OrElse SliderControlOpacity Is Nothing Then Return
+        If SliderBgOpacity Is Nothing OrElse SliderBgClarity Is Nothing Then Return
+
+        LabHue.Text = FhLanguage.Text("色调: ", "Hue: ") & CInt(SliderHue.Value)
+        LabSat.Text = FhLanguage.Text("饱和度: ", "Saturation: ") & CInt(SliderSat.Value) & "%"
+        LabLight.Text = FhLanguage.Text("亮度微调: ", "Lightness adjustment: ") & (CInt(SliderLight.Value) - 20)
+        
+        LabWindowTrans.Text = FhLanguage.Text("窗口不透明度: ", "Window Opacity: ") & CInt(SliderWindowTrans.Value) & "%"
+        LabControlOpacity.Text = FhLanguage.Text("控件不透明度: ", "Control Opacity: ") & CInt(SliderControlOpacity.Value) & "%"
+        LabBgOpacity.Text = FhLanguage.Text("背景图不透明度: ", "Background Opacity: ") & CInt(SliderBgOpacity.Value) & "%"
+        LabBgClarity.Text = FhLanguage.Text("背景图片清晰度: ", "Background Clarity: ") & CInt(SliderBgClarity.Value) & "%"
+
+        Dim path = Settings.Get(Of String)("UiBackgroundImagePath")
+        If String.IsNullOrWhiteSpace(path) Then
+            LabImagePath.Text = FhLanguage.Text("使用默认内置背景图", "Use default background image")
+        Else
+            LabImagePath.Text = path
+        End If
+
+        If CardCustomHSL IsNot Nothing AndAlso RadioThemeCustom IsNot Nothing Then
+            CardCustomHSL.Visibility = If(RadioThemeCustom.Checked, Visibility.Visible, Visibility.Collapsed)
+        End If
+
+        If LabIconPath IsNot Nothing Then
+            Dim iconPath = Settings.Get(Of String)("GameIconPath")
+            If String.IsNullOrWhiteSpace(iconPath) Then
+                LabIconPath.Text = FhLanguage.Text("使用默认内置图标", "Use default game icon")
+            Else
+                LabIconPath.Text = iconPath
+            End If
+        End If
+    End Sub
+
+    Private Sub Preset_Check(sender As Object, e As RouteEventArgs) Handles _
+        RadioTheme0.Check, RadioTheme1.Check, RadioTheme5.Check, _
+        RadioTheme7.Check, RadioTheme9.Check, RadioTheme10.Check, _
+        RadioThemeCustom.Check
+
+        If FrmMain Is Nothing OrElse Not IsLoaded Then Return
+        
+        UpdatePersonalizationLabels()
+        
+        Dim themeId = Settings.Get(Of Integer)("UiLauncherTheme")
+        ThemeRefresh(themeId)
+        ThemeRefreshMain()
+    End Sub
+
+    Private Sub Slider_Change(sender As Object, user As Boolean) Handles _
+        SliderHue.Change, SliderSat.Change, SliderLight.Change
+
+        If FrmMain Is Nothing OrElse Not IsLoaded Then Return
+
+        UpdatePersonalizationLabels()
+
+        Dim themeId = Settings.Get(Of Integer)("UiLauncherTheme")
+        If themeId = 14 Then
+            ThemeRefresh(14)
+            ThemeRefreshMain()
+        End If
+    End Sub
+
+    Private Sub SliderWindowTrans_Change(sender As Object, user As Boolean) Handles SliderWindowTrans.Change
+        If FrmMain Is Nothing OrElse Not IsLoaded Then Return
+        UpdatePersonalizationLabels()
+        FrmMain.UpdateWindowOpacity()
+    End Sub
+
+    Private Sub SliderControlOpacity_Change(sender As Object, user As Boolean) Handles SliderControlOpacity.Change
+        If FrmMain Is Nothing OrElse Not IsLoaded Then Return
+        UpdatePersonalizationLabels()
+        FrmMain.UpdateControlOpacity()
+    End Sub
+
+    Private Sub SliderBgOpacity_Change(sender As Object, user As Boolean) Handles SliderBgOpacity.Change
+        If FrmMain Is Nothing OrElse Not IsLoaded Then Return
+        UpdatePersonalizationLabels()
+        FrmMain.LoadBackgroundImage()
+    End Sub
+
+    Private Sub SliderBgClarity_Change(sender As Object, user As Boolean) Handles SliderBgClarity.Change
+        If FrmMain Is Nothing OrElse Not IsLoaded Then Return
+        UpdatePersonalizationLabels()
+        FrmMain.LoadBackgroundImage()
+    End Sub
+
+    Private Sub BtnSelectBg_Click(sender As Object, e As MouseButtonEventArgs)
+        Dim openFileDialog As New OpenFileDialog()
+        openFileDialog.Filter = "图像文件 (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|所有文件 (*.*)|*.*"
+        If openFileDialog.ShowDialog() = True Then
+            Settings.Set("UiBackgroundImagePath", openFileDialog.FileName)
+            UpdatePersonalizationLabels()
+            If FrmMain IsNot Nothing Then
+                FrmMain.LoadBackgroundImage()
+            End If
+        End If
+    End Sub
+
+    Private Sub BtnResetBg_Click(sender As Object, e As MouseButtonEventArgs)
+        Settings.Set("UiBackgroundImagePath", "")
+        UpdatePersonalizationLabels()
+        If FrmMain IsNot Nothing Then
+            FrmMain.LoadBackgroundImage()
+        End If
+    End Sub
+
+    Private Sub BtnSelectIcon_Click(sender As Object, e As MouseButtonEventArgs)
+        Dim openFileDialog As New OpenFileDialog()
+        openFileDialog.Filter = "图像文件 (*.jpg;*.jpeg;*.png;*.bmp;*.ico)|*.jpg;*.jpeg;*.png;*.bmp;*.ico|所有文件 (*.*)|*.*"
+        If openFileDialog.ShowDialog() = True Then
+            Settings.Set("GameIconPath", openFileDialog.FileName)
+            UpdatePersonalizationLabels()
+            TryCast(FrmMain?.PageLeft, PageFhToolsLeft)?.LoadGameIcon()
+        End If
+    End Sub
+
+    Private Sub BtnResetIcon_Click(sender As Object, e As MouseButtonEventArgs)
+        Settings.Set("GameIconPath", "")
+        UpdatePersonalizationLabels()
+        TryCast(FrmMain?.PageLeft, PageFhToolsLeft)?.LoadGameIcon()
+    End Sub
+
+    Private Async Sub IconToolImportZip_Click(sender As Object, e As EventArgs)
+        Dim tool = GetToolFromSender(sender)
+        If tool Is Nothing Then Return
+
+        Dim dialog As New OpenFileDialog With {
+            .Title = FhLanguage.Text($"选择本地压缩包安装 {tool.Name}", $"Select local archive to install {tool.Name}"),
+            .Filter = "ZIP archive (*.zip)|*.zip"
+        }
+        If dialog.ShowDialog() <> True Then Return
+
+        Try
+            ' 1. 计算本地 ZIP 的 SHA-256
+            Dim localSha = Await FhNet.ComputeSha256Async(dialog.FileName)
+
+            ' 2. 尝试在线获取官方 Release 的 digest 哈希
+            Dim onlineSha As String = ""
+            Dim onlineVersion As String = tool.Version
+            Try
+                Dim repo = ParseGitHubRepository(tool.Homepage)
+                If repo IsNot Nothing Then
+                    Using request As New HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repo.Value.Owner}/{repo.Value.Repository}/releases/latest")
+                        request.Headers.UserAgent.ParseAdd("FH6Tools")
+                        Using response = Await GithubApiClient.SendAsync(request)
+                            If response.IsSuccessStatusCode Then
+                                Dim json = Await response.Content.ReadAsStringAsync()
+                                Using document = JsonDocument.Parse(json)
+                                    Dim root = document.RootElement
+                                    Dim assets = root.GetProperty("assets")
+                                    ' 匹配合适的资产
+                                    Dim matchedAsset As JsonElement = Nothing
+                                    For Each asset In assets.EnumerateArray()
+                                        Dim assetName = asset.GetProperty("name").GetString()
+                                        ' 根据下载特征匹配
+                                        Dim isMatch = False
+                                        If tool.DownloadUrl.Contains("github-release://") Then
+                                            Dim parts = tool.DownloadUrl.Split("/"c)
+                                            If parts.Length > 2 Then
+                                                isMatch = WildcardMatch(assetName, parts(2))
+                                            End If
+                                        Else
+                                            isMatch = True
+                                        End If
+                                        If isMatch Then
+                                            matchedAsset = asset
+                                            Exit For
+                                        End If
+                                    Next
+
+                                    If matchedAsset.ValueKind <> JsonValueKind.Undefined Then
+                                        Dim tempProperty As JsonElement = Nothing
+                                        If matchedAsset.TryGetProperty("digest", tempProperty) Then
+                                            Dim digestVal = tempProperty.GetString()
+                                            If Not String.IsNullOrWhiteSpace(digestVal) AndAlso digestVal.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) Then
+                                                onlineSha = digestVal.Substring(7).Trim()
+                                            End If
+                                        End If
+                                        If root.TryGetProperty("tag_name", tempProperty) Then
+                                            onlineVersion = tempProperty.GetString()
+                                        End If
+                                    End If
+                                End Using
+                            End If
+                        End Using
+                    End Using
+                End If
+            Catch ex As Exception
+                Logger.Warn(ex, $"Failed to fetch latest digest from GitHub for {tool.Name}.")
+            End Try
+
+            ' 3. 校验匹配
+            If Not String.IsNullOrWhiteSpace(onlineSha) AndAlso String.Equals(localSha, onlineSha, StringComparison.OrdinalIgnoreCase) Then
+                ' 哈希一致：官方最新版
+                Dim installPath = Await InstallService.InstallLocalZipAsync(tool, dialog.FileName, onlineVersion, Threading.CancellationToken.None)
+                Await RefreshToolsAsync()
+                MessageBox.Show(FhLanguage.Text($"成功匹配官方哈希，已作为官方最新版本 {onlineVersion} 安装。", $"Matched official hash. Installed as official latest version {onlineVersion}."), "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Information)
+                Return
+            End If
+
+            ' 4. 哈希不一致，进入临时解压和 EXE 特征验证
+            Dim tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "fh6tools-import-" & Guid.NewGuid().ToString())
+            System.IO.Directory.CreateDirectory(tempDir)
+            Try
+                Await Task.Run(Sub() System.IO.Compression.ZipFile.ExtractToDirectory(dialog.FileName, tempDir))
+
+                ' 验证 EXE 是否存在且符合 endpoint 定义的规则
+                Dim endpoints = {tool.[Single], tool.Backend, tool.Frontend}.
+                    Where(Function(ep) ep IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(ep.Executable)).
+                    ToList()
+
+                Dim isExeMatched = False
+                Dim matchedExePath As String = ""
+                For Each ep In endpoints
+                    Dim resolved = ToolInstallService.ResolveInstalledExecutable(ep, tempDir)
+                    If Not String.IsNullOrWhiteSpace(resolved) AndAlso System.IO.File.Exists(resolved) Then
+                        isExeMatched = True
+                        matchedExePath = resolved
+                        Exit For
+                    End If
+                Next
+
+                If Not isExeMatched Then
+                    Throw New System.IO.InvalidDataException(FhLanguage.Text("该压缩包内未包含匹配的程序文件，不符合此工具的启动特征。", "The archive does not contain matched executables matching the tool startup definition."))
+                End If
+
+                ' 提取版本号
+                Dim detectedVersion = ""
+                Try
+                    Dim fileInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(matchedExePath)
+                    detectedVersion = If(fileInfo.ProductVersion, fileInfo.FileVersion)
+                    If Not String.IsNullOrWhiteSpace(detectedVersion) Then
+                        detectedVersion = detectedVersion.Trim()
+                    End If
+                Catch
+                End Try
+
+                ' 如果 PE 版本号不可靠，通过 ZIP 文件名正则匹配
+                If String.IsNullOrWhiteSpace(detectedVersion) OrElse detectedVersion.Equals("0.0.0.0") OrElse detectedVersion.Equals("1.0.0.0") Then
+                    Dim fileName = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName)
+                    Dim match = System.Text.RegularExpressions.Regex.Match(fileName, "\bv?(\d+(\.\d+)+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                    If match.Success Then
+                        detectedVersion = match.Groups(1).Value
+                    End If
+                End If
+
+                If String.IsNullOrWhiteSpace(detectedVersion) Then
+                    detectedVersion = "1.0.0"
+                End If
+
+                ' 弹窗向用户确认
+                Dim messageText = FhLanguage.Text($"已通过程序特征验证，解析到版本为: {detectedVersion}。是否确定导入为官方 {tool.Name} 工具？", $"Validated successfully. Detected version: {detectedVersion}. Install as official {tool.Name}?")
+                If MessageBox.Show(messageText, "FH6Tools", MessageBoxButton.YesNo, MessageBoxImage.Question) = MessageBoxResult.Yes Then
+                    ' 进行官方目录导入安装
+                    Await InstallService.InstallLocalDirectoryAsync(tool, tempDir, detectedVersion, Threading.CancellationToken.None)
+                    Await RefreshToolsAsync()
+                    MessageBox.Show(FhLanguage.Text($"安装成功，当前版本: {detectedVersion}。", $"Installation successful. Current version: {detectedVersion}."), "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Information)
+                End If
+            Finally
+                ' 清除临时目录
+                Try
+                    If System.IO.Directory.Exists(tempDir) Then System.IO.Directory.Delete(tempDir, True)
+                Catch
+                End Try
+            End Try
+
+        Catch ex As Exception
+            MessageBox.Show(ex.Message, "FH6Tools", MessageBoxButton.OK, MessageBoxImage.Error)
+        End Try
+    End Sub
+
+    Private Shared Function CreateGithubClient() As HttpClient
+        Dim client As New HttpClient
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("FH6Tools")
+        Return client
+    End Function
+
+    Private Shared Function ParseGitHubRepository(homepage As String) As (Owner As String, Repository As String)?
+        Dim match = System.Text.RegularExpressions.Regex.Match(If(homepage, ""), "^https://github\.com/([^/]+)/([^/#?]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+        If Not match.Success Then Return Nothing
+        Return (match.Groups(1).Value, match.Groups(2).Value)
+    End Function
+
+    Private Shared Function WildcardMatch(value As String, pattern As String) As Boolean
+        Dim patternRegex = "^" & System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\*", ".*").Replace("\?", ".") & "$"
+        Return System.Text.RegularExpressions.Regex.IsMatch(If(value, ""), patternRegex, System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+    End Function
 
 End Class
 

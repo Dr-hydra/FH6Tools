@@ -4,17 +4,17 @@
                   xmlns:local="clr-namespace:FH6Tools"
                   AnimatedControl="PanAnimated"
                   Width="190">
-    <Grid x:Name="PanAnimated" Background="#FAFFFFFF">
+    <Grid x:Name="PanAnimated">
         <StackPanel x:Name="PanLauncher" Margin="18,28,18,18">
-            <Border Width="128" Height="108" CornerRadius="20" HorizontalAlignment="Center" Margin="0,0,0,18">
+            <Border x:Name="BorderGameIcon" Width="128" Height="108" CornerRadius="20" HorizontalAlignment="Center" Margin="0,0,0,18" Cursor="Hand" ToolTip="点击自定义游戏图标，右击恢复默认" MouseLeftButtonDown="BorderGameIcon_Click" MouseRightButtonDown="BorderGameIcon_RightClick">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                         <GradientStop Color="{DynamicResource ColorObject3}" Offset="0" />
                         <GradientStop Color="{DynamicResource ColorObject1}" Offset="1" />
                     </LinearGradientBrush>
                 </Border.Background>
-                <Grid Margin="10">
-                    <local:MyImage Source="pack://application:,,,/FH6Tools;component/Images/Logos/forza-horizon-6-logo.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                <Grid x:Name="GridGameIcon" Margin="10">
+                    <local:MyImage x:Name="ImgGameIcon" Source="pack://application:,,,/FH6Tools;component/Images/Logos/forza-horizon-6-logo.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                 </Grid>
             </Border>
             <TextBlock x:Name="LabGamePlatform" Text="未检测到游戏" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource ColorBrushGray3}" Margin="0,0,0,6" />
@@ -28,6 +28,7 @@
             <local:MyListItem x:Name="ItemDownloads" Title="下载" Type="RadioBox" Tag="2" Height="38" PaddingLeft="4" IsScaleAnimationEnabled="False" />
             <local:MyListItem x:Name="ItemConfig" Title="常规设置" Type="RadioBox" Tag="3" Height="38" PaddingLeft="4" IsScaleAnimationEnabled="False" />
             <local:MyListItem x:Name="ItemGameData" Title="游戏与数据" Type="RadioBox" Tag="5" Height="38" PaddingLeft="4" IsScaleAnimationEnabled="False" />
+            <local:MyListItem x:Name="ItemPersonalization" Title="个性化设置" Type="RadioBox" Tag="8" Height="38" PaddingLeft="4" IsScaleAnimationEnabled="False" />
             <local:MyListItem x:Name="ItemAbout" Title="关于 FH6Tools" Type="RadioBox" Tag="4" Height="38" PaddingLeft="4" IsScaleAnimationEnabled="False" />
             <local:MyListItem x:Name="ItemRuntimeInfo" Title="运行时与安全" Type="RadioBox" Tag="6" Height="38" PaddingLeft="4" IsScaleAnimationEnabled="False" />
         </StackPanel>

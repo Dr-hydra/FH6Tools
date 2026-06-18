@@ -265,7 +265,7 @@
       "installType": "portableExe",
       "toolType": "single",
       "single": {
-        "executable": "*forza-painter-fh6.exe",
+        "executable": "*forza-painter-fh6*.exe",
         "workingDirectory": "",
         "defaultPort": 0,
         "healthUrl": "",

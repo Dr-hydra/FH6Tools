@@ -7,6 +7,7 @@ Public Enum FhShellPage
     GameData = 5
     RuntimeInfo = 6
     Guide = 7
+    Personalization = 8
 End Enum
 
 Public Class FhShellHost
@@ -31,6 +32,8 @@ Public Module FhShellText
                 Return FhLanguage.Text("游戏与数据", "Game and Data")
             Case FhShellPage.RuntimeInfo
                 Return FhLanguage.Text("运行时与安全", "Runtime and Safety")
+            Case FhShellPage.Personalization
+                Return FhLanguage.Text("个性化设置", "Personalization")
             Case Else
                 Return FhLanguage.Text("启动台", "Launcher")
         End Select
@@ -52,6 +55,8 @@ Public Module FhShellText
                 Return FhLanguage.Text("管理游戏路径、数据与备份。", "Manage game paths, data, and backups.")
             Case FhShellPage.RuntimeInfo
                 Return FhLanguage.Text("查看共享运行时与安全策略。", "View shared runtime and safety policy.")
+            Case FhShellPage.Personalization
+                Return FhLanguage.Text("调整配色主题、窗口透明度与自定义背景。", "Adjust color themes, window transparency, and custom background.")
             Case Else
                 Return FhLanguage.Text("启动极限竞速：地平线 6。", "Launch Forza Horizon 6.")
         End Select

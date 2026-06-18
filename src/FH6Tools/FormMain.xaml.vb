@@ -1,4 +1,6 @@
 Imports System.Windows.Interop
+Imports System.Windows.Media.Imaging
+Imports System.Windows.Media.Effects
 
 Public Class FormMain
 
@@ -49,6 +51,9 @@ Public Class FormMain
         Resizer.addResizerRightUp(ResizerRT)
         Resizer.addResizerUp(ResizerT)
 
+        LoadBackgroundImage()
+        UpdateWindowOpacity()
+        UpdateControlOpacity()
         ThemeRefreshMain()
         BtnTitleSelect0.SetChecked(True, False, False)
         Height = Math.Max(Settings.Get(Of Integer)("WindowHeight"), MinHeight)
@@ -60,7 +65,7 @@ Public Class FormMain
 
         AniStart({
             AaCode(Sub() AniControlEnabled = 0, 50),
-            AaOpacity(Me, Settings.Get(Of Integer)("UiLauncherTransparent") / 1000 + 0.4, 250, 100),
+            AaOpacity(Me, (Settings.Get(Of Integer)("UiLauncherTransparent") / 100.0) * 0.6 + 0.4, 250, 100),
             AaDouble(Sub(i) TransformPos.Y += i, -TransformPos.Y, 600, 100, New AniEaseOutBack(AniEasePower.Weak)),
             AaDouble(Sub(i) TransformRotate.Angle += i, -TransformRotate.Angle, 500, 100, New AniEaseOutBack(AniEasePower.Weak)),
             AaCode(Sub()
@@ -90,6 +95,73 @@ Public Class FormMain
         LabTitleStatus.Text = FhLanguage.Text("地平线 6 工具中心", "Forza Horizon 6 Tool Center")
         PanTitleMain.ColumnDefinitions(0).Width = New GridLength(1, GridUnitType.Star)
         ApplyLanguage()
+    End Sub
+
+    Public Sub LoadBackgroundImage()
+        Dim opacityVal = Settings.Get(Of Integer)("UiBackgroundOpacity")
+        
+        If opacityVal > 0 Then
+            Dim path = Settings.Get(Of String)("UiBackgroundImagePath")
+            Try
+                If Not String.IsNullOrWhiteSpace(path) AndAlso IO.File.Exists(path) Then
+                    Dim image As New BitmapImage()
+                    image.BeginInit()
+                    image.CacheOption = BitmapCacheOption.OnLoad
+                    image.UriSource = New Uri(path)
+                    image.EndInit()
+                    ImgBack.Source = image
+                Else
+                    Dim uri As New Uri("pack://application:,,,/FH6Tools;component/Images/Themes/12.png")
+                    ImgBack.Source = New BitmapImage(uri)
+                End If
+                ImgBack.Visibility = Visibility.Visible
+            Catch ex As Exception
+                ImgBack.Visibility = Visibility.Collapsed
+            End Try
+            
+            ' Apply opacity (clamped from 0.0 to 1.0)
+            ImgBack.Opacity = opacityVal / 100.0
+            
+            ' Apply clarity (inverse of blur)
+            Dim clarityVal = Settings.Get(Of Integer)("UiBackgroundClarity")
+            Dim blurRadius = (100 - clarityVal) * 0.3
+            If blurRadius > 0 Then
+                Dim blur As New System.Windows.Media.Effects.BlurEffect()
+                blur.Radius = blurRadius
+                blur.KernelType = System.Windows.Media.Effects.KernelType.Gaussian
+                ImgBack.Effect = blur
+            Else
+                ImgBack.Effect = Nothing
+            End If
+        Else
+            ImgBack.Visibility = Visibility.Collapsed
+            ImgBack.Source = Nothing
+            ImgBack.Effect = Nothing
+        End If
+    End Sub
+
+    Public Sub UpdateWindowOpacity()
+        Dim transparentVal = Settings.Get(Of Integer)("UiLauncherTransparent")
+        Me.Opacity = (transparentVal / 100.0) * 0.6 + 0.4
+    End Sub
+
+    Public Sub UpdateControlOpacity()
+        Try
+            Dim opacityVal = Settings.Get(Of Integer)("UiControlOpacity")
+            Dim alphaVal As Byte = CByte((opacityVal / 100.0) * 255)
+            
+            ' Update sidebar background opacity
+            Dim sidebarBrush = New SolidColorBrush(Color.FromArgb(alphaVal, 255, 255, 255))
+            sidebarBrush.Freeze()
+            Application.Current.Resources("ColorBrushBackgroundTransparentSidebar") = sidebarBrush
+            
+            ' Update card background opacity
+            Dim cardBrush = New SolidColorBrush(Color.FromArgb(alphaVal, 255, 255, 255))
+            cardBrush.Freeze()
+            Application.Current.Resources("ColorBrushCardBackground") = cardBrush
+        Catch ex As Exception
+            Logger.Error(ex, "更新控件不透明度失败")
+        End Try
     End Sub
 
     Public Sub ShowGameBackupManager()

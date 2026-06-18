@@ -217,6 +217,24 @@ Public Class ToolInstallService
         Next
     End Sub
 
+    Public Async Function InstallLocalZipAsync(tool As ToolManifestEntry, zipPath As String, version As String, cancellationToken As Threading.CancellationToken) As Task(Of String)
+        Dim installPath = GetInstallPath(tool)
+        If Directory.Exists(installPath) Then Directory.Delete(installPath, True)
+        Directory.CreateDirectory(installPath)
+        Await Task.Run(Sub() ZipFile.ExtractToDirectory(zipPath, installPath), cancellationToken)
+        Await File.WriteAllTextAsync(Path.Combine(installPath, ".fh6tools-version"), If(version, "").Trim())
+        Return installPath
+    End Function
+
+    Public Async Function InstallLocalDirectoryAsync(tool As ToolManifestEntry, sourceDir As String, version As String, cancellationToken As Threading.CancellationToken) As Task(Of String)
+        Dim installPath = GetInstallPath(tool)
+        If Directory.Exists(installPath) Then Directory.Delete(installPath, True)
+        Directory.CreateDirectory(installPath)
+        Await Task.Run(Sub() CopyDirectory(sourceDir, installPath, cancellationToken), cancellationToken)
+        Await File.WriteAllTextAsync(Path.Combine(installPath, ".fh6tools-version"), If(version, "").Trim())
+        Return installPath
+    End Function
+
     Private Class ResolvedDownload
         Public Property Url As String = ""
         Public Property FileName As String = "download.bin"

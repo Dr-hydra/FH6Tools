@@ -293,6 +293,42 @@ async Task TestZipInstallAndConfigSnapshots()
 
     await TestInstallerDownloadExtension(installer, "exe");
     await TestInstallerDownloadExtension(installer, "msi");
+
+    // Test manually imported local official tools using InstallLocalZipAsync & InstallLocalDirectoryAsync
+    var localZipTool = new ToolManifestEntry
+    {
+        Id = "local-zip-tool",
+        Name = "Local Zip Tool",
+        Version = "latest",
+        InstallType = "zip",
+        ToolType = "single",
+        Single = new ToolEndpointDefinition { Executable = "tool.exe" }
+    };
+    var testLocalZipPath = Path.Combine(root, "local-tool.zip");
+    File.Copy(zipPath, testLocalZipPath, true);
+
+    var localInstallPath = await installer.InstallLocalZipAsync(localZipTool, testLocalZipPath, "1.2.3", CancellationToken.None);
+    Require(File.Exists(Path.Combine(localInstallPath, "tool.exe")), "InstallLocalZipAsync did not extract tool.exe");
+    Require(installer.IsInstalled(localZipTool), "InstallLocalZipAsync tool should be installed");
+    Require(installer.GetInstalledVersion(localZipTool) == "1.2.3", "InstallLocalZipAsync did not write correct version");
+
+    var localDirTool = new ToolManifestEntry
+    {
+        Id = "local-dir-tool",
+        Name = "Local Dir Tool",
+        Version = "latest",
+        InstallType = "zip",
+        ToolType = "single",
+        Single = new ToolEndpointDefinition { Executable = "tool.exe" }
+    };
+    var testLocalDir = Path.Combine(root, "local-temp-dir");
+    Directory.CreateDirectory(testLocalDir);
+    await File.WriteAllTextAsync(Path.Combine(testLocalDir, "tool.exe"), "fake exe");
+
+    var dirInstallPath = await installer.InstallLocalDirectoryAsync(localDirTool, testLocalDir, "2.3.4", CancellationToken.None);
+    Require(File.Exists(Path.Combine(dirInstallPath, "tool.exe")), "InstallLocalDirectoryAsync did not copy tool.exe");
+    Require(installer.IsInstalled(localDirTool), "InstallLocalDirectoryAsync tool should be installed");
+    Require(installer.GetInstalledVersion(localDirTool) == "2.3.4", "InstallLocalDirectoryAsync did not write correct version");
 }
 
 async Task TestRuntimeAndPorts()

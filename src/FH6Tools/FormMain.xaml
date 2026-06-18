@@ -82,7 +82,7 @@
                     <RowDefinition />
                 </Grid.RowDefinitions>
 
-                <Canvas x:Name="ImgBack" Grid.Row="1" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="LowQuality" />
+                <Image x:Name="ImgBack" Grid.Row="1" Stretch="UniformToFill" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="LowQuality" />
 
                 <Grid x:Name="PanTitle" Height="48">
                     <Grid.Background>

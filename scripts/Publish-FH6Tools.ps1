@@ -1,14 +1,34 @@
 [CmdletBinding()]
 param(
-    [string]$OutputPath = (Join-Path $PSScriptRoot "..\artifacts\publish\win-x64"),
-    [string]$UpdateOutputPath = (Join-Path $PSScriptRoot "..\artifacts\publish\win-x64-update"),
-    [string]$PackageOutputPath = (Join-Path $PSScriptRoot "..\artifacts\publish\packages"),
+    [string]$OutputPath = "",
+    [string]$UpdateOutputPath = "",
+    [string]$PackageOutputPath = "",
     [string]$RuntimeChannel = "10.0",
-    [string]$RuntimeCachePath = (Join-Path $PSScriptRoot "..\runtime\dotnet-win-x64")
+    [string]$RuntimeCachePath = ""
 )
 
 $ErrorActionPreference = "Stop"
-$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+
+$scriptRoot = $PSScriptRoot
+if ([string]::IsNullOrEmpty($scriptRoot)) {
+    $scriptRoot = Join-Path (Get-Location) "scripts"
+}
+
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot ".."))
+
+if ([string]::IsNullOrEmpty($OutputPath)) {
+    $OutputPath = Join-Path $repoRoot "artifacts\publish\win-x64"
+}
+if ([string]::IsNullOrEmpty($UpdateOutputPath)) {
+    $UpdateOutputPath = Join-Path $repoRoot "artifacts\publish\win-x64-update"
+}
+if ([string]::IsNullOrEmpty($PackageOutputPath)) {
+    $PackageOutputPath = Join-Path $repoRoot "artifacts\publish\packages"
+}
+if ([string]::IsNullOrEmpty($RuntimeCachePath)) {
+    $RuntimeCachePath = Join-Path $repoRoot "runtime\dotnet-win-x64"
+}
+
 $projectPath = Join-Path $repoRoot "src\FH6Tools\FH6Tools.vbproj"
 $outputPath = [System.IO.Path]::GetFullPath($OutputPath)
 $updateOutputPath = [System.IO.Path]::GetFullPath($UpdateOutputPath)
